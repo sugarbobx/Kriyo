@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String           @id @default(cuid())
+  email          String           @unique
+  createdAt      DateTime         @default(now())
+  comptesProp    CompteProp[]
+  sessions       Session[]
+  validationsSas ValidationSas[]
+}
+
+model CompteProp {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id])
+  nom          String
+  capital      Float
+  typePayout   String
+  profilRisque ProfilRisque @relation(fields: [profilRisqueId], references: [id])
+  profilRisqueId String
+  trades       Trade[]
+  createdAt    DateTime     @default(now())
+}
+
+model ProfilRisque {
+  id        String       @id @default(cuid())
+  type      String       @unique
+  dailyDD   Float?
+  maxDD     Float?
+  plafondTP Float?
+  comptes   CompteProp[]
+}
+
+model Trade {
+  id            String     @id @default(cuid())
+  comptePropId   String
+  compteProp     CompteProp @relation(fields: [comptePropId], references: [id])
+  scoreVR       Int
+  scoreEP       Int
+  scoreVP       Int
+  scoreTotal    Int
+  riskReward    Float?
+  pnl           Float?
+  statut        String
+  dateOuverture DateTime   @default(now())
+  dateCloture   DateTime?
+}
+
+model ValidationSas {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  tension       Boolean
+  ecran         Boolean
+  telephone     Boolean
+  macro         Boolean
+  alignement    Boolean
+  valide        Boolean
+  dateValidation DateTime @default(now())
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  dateDebut DateTime @default(now())
+  dateFin   DateTime?
+}
