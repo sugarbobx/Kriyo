@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter, JetBrains_Mono, Space_Grotesk } from 'next/font/google';
 import { RegisterServiceWorker } from '@/components/pwa/register-sw';
+import { SyncQueueBootstrap } from '@/components/sync/sync-queue-bootstrap';
 import { APP_BASE_PATH, APP_NAME } from '@/lib/app-config';
 import './globals.css';
 
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="fr" className={`${display.variable} ${body.variable} ${mono.variable}`}>
       <body>
         <RegisterServiceWorker />
+        <SyncQueueBootstrap />
         {children}
       </body>
     </html>

@@ -5,9 +5,10 @@ import { AppShell } from '@/components/layout/app-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { getActiveUserId } from '@/lib/auth/client-user';
+import { getActiveUser } from '@/lib/auth/client-user';
 import { getKriyoDb, type KriyoComptePropRecord, type KriyoProfilRisqueRecord } from '@/lib/db';
 import { enqueueMutation } from '@/lib/sync/queue';
+import { syncQueuedMutations } from '@/lib/sync/client';
 import { formatLocalTimestamp } from '@/lib/time';
 import { PAYOUT_OPTIONS, PayoutToRiskProfile, RISK_PROFILE_PRESETS, type PayoutType } from '@/lib/risk-profiles';
 
@@ -41,7 +42,10 @@ export default function AccountsPage() {
   const [message, setMessage] = useState('');
   const [status, setStatus] = useState<'loading' | 'ready' | 'saving' | 'error'>('loading');
 
-  const profileByType = useMemo(() => Object.fromEntries(profiles.map((profile) => [profile.type, profile])) as Record<string, KriyoProfilRisqueRecord>, [profiles]);
+  const profileByType = useMemo(
+    () => Object.fromEntries(profiles.map((profile) => [profile.type, profile])) as Record<string, KriyoProfilRisqueRecord>,
+    [profiles]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -51,10 +55,10 @@ export default function AccountsPage() {
       setMessage('Chargement des comptes locaux...');
 
       try {
-        const activeUserId = await getActiveUserId();
+        const activeUser = await getActiveUser();
         if (cancelled) return;
 
-        setUserId(activeUserId);
+        setUserId(activeUser.id);
         const db = await getKriyoDb();
 
         const seededProfiles = profileOrder.map((type) => RISK_PROFILE_PRESETS[type]);
@@ -74,7 +78,7 @@ export default function AccountsPage() {
         if (cancelled) return;
 
         setProfiles(savedProfiles);
-        setAccounts(savedAccounts.filter((account) => account.userId === activeUserId));
+        setAccounts(savedAccounts.filter((account) => account.userId === activeUser.id));
         setStatus('ready');
         setMessage(savedAccounts.length > 0 ? 'Comptes locaux chargés.' : 'Aucun compte pour le moment.');
       } catch {
@@ -108,6 +112,7 @@ export default function AccountsPage() {
       setMessage('Sauvegarde du compte et du profil de risque...');
 
       const db = await getKriyoDb();
+      const activeUser = await getActiveUser(userId);
       const profileType = PayoutToRiskProfile[form.typePayout];
       const preset = RISK_PROFILE_PRESETS[profileType];
       const profile = {
@@ -131,7 +136,10 @@ export default function AccountsPage() {
       };
 
       await db.put('comptesProp', account);
-      await enqueueMutation('create_compte_prop', account);
+      await enqueueMutation('create_compte_prop', {
+        account,
+        userEmail: activeUser.email
+      });
 
       setProfiles((current) => {
         const existing = current.filter((item) => item.type !== profile.type);
@@ -139,8 +147,21 @@ export default function AccountsPage() {
       });
       setAccounts((current) => [account, ...current]);
       setForm(initialForm);
-      setStatus('ready');
-      setMessage(`Profil de risque configuré: ${preset.label}.`);
+
+      try {
+        const syncedCount = await syncQueuedMutations();
+        setStatus('ready');
+        setMessage(
+          syncedCount > 0
+            ? `Compte enregistré localement et synchronisé sur Supabase. Profil de risque configuré: ${preset.label}.`
+            : `Compte enregistré localement. Profil de risque configuré: ${preset.label}.`
+        );
+      } catch {
+        setStatus('ready');
+        setMessage(
+          `Compte enregistré localement. Synchronisation Supabase en attente. Profil de risque configuré: ${preset.label}.`
+        );
+      }
     } catch {
       setStatus('error');
       setMessage('Impossible d’enregistrer le compte localement.');
@@ -246,7 +267,9 @@ export default function AccountsPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-medium text-kriyo-text">{account.nom}</p>
-                        <p className="mt-1 text-xs text-kriyo-dim">{formatCapital(account.capital)} · {account.typePayout}</p>
+                        <p className="mt-1 text-xs text-kriyo-dim">
+                          {formatCapital(account.capital)} · {account.typePayout}
+                        </p>
                       </div>
                       <Badge className="border-kriyo-cyan/30 bg-kriyo-cyan/10 text-kriyo-cyan">{profile?.type ?? '—'}</Badge>
                     </div>

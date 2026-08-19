@@ -35,7 +35,9 @@ export function AuthForm({ mode, nextPath = '/sas' }: AuthFormProps) {
 
     if (!supabase) {
       setStatus('error');
-      setMessage('Variables Supabase manquantes. Renseigne NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+      setMessage(
+        'Variables Supabase manquantes. Renseigne NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ou NEXT_PUBLIC_SUPABASE_ANON_KEY.'
+      );
       return;
     }
 
