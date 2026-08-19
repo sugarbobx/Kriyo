@@ -1,7 +1,9 @@
 KRIYO - Rapport des taches 1 a 10
 
 Etat au 2026-08-19
-Checkpoint local: f8965af
+Progression globale: 90% (9/10)
+Checkpoint local precedent: f8965af
+Commit local suivant: en preparation
 Push final: a effectuer manuellement par le user
 
 1. Finaliser l'integration Supabase securisee et l'environnement de production
@@ -14,32 +16,32 @@ Notes: createSupabaseBrowserClient, createSupabaseServerClient, getSupabaseUser 
 
 3. Brancher les Server Actions Prisma pour comptes, validation SAS et sync
 Statut: termine
-Notes: persistQueuedMutation controle l'ecriture serveur des comptes, validations et trades de queue.
+Notes: persistQueuedMutation controle l'ecriture serveur des comptes, validations, trades ouverts et trades clotures.
 
 4. Corriger le routing, la navigation et les ecrans de base
 Statut: termine
 Notes: route Education ajoutee, bottom nav et middleware mis a jour, protections conservees.
 
 5. Commit et push du checkpoint avant de continuer
-Statut: commit local effectue
+Statut: termine localement
 Notes: commit local f8965af cree. Push non effectue ici, a faire manuellement par le user.
 
 6. Implementer le moteur 9/9 et la creation de trade cote serveur
-Statut: en cours
-Notes: prochain bloc de travail prioritaire. Validation stricte du score et creation idempotente du trade a renforcer.
+Statut: termine localement
+Notes: moteur 9/9 durci, sync immediate apres execution, validation serveur des trades a 9/9. Commit local f61dfff cree.
 
 7. Implementer le tracking, la cloture PnL et les regles post-trade
-Statut: a faire
-Notes: fermeture trade, saisie PnL, TP force 40%, Daily DD, Max DD, verrouillages a coder.
+Statut: termine
+Notes: modal de cloture, evaluation PnL et synchronisation des trades fermes ajoutes.
 
 8. Ajouter l'ecran Education / Glossaire V1
 Statut: termine
 Notes: ecran statique ajoute avec contenu de base et acces protege.
 
 9. Ajouter les migrations / RLS / bootstrap Supabase SQL
-Statut: a faire
-Notes: schema SQL, politiques RLS, bootstrap de prod et verification du DATABASE_URL a finaliser.
+Statut: termine
+Notes: bootstrap SQL ajoute dans supabase/bootstrap.sql et miroir Prisma dans prisma/migrations/20260819_supabase_bootstrap/migration.sql. Docker build genere le client Prisma et lance prisma migrate deploy au demarrage. DATABASE_URL doit pointer vers la base Supabase de production.
 
 10. Verifier build, logs, et preparer le deploiement VPS
 Statut: a faire
-Notes: smoke tests, logs Docker, verification runtime et deploiement final a executer.
+Notes: build Next.js valide localement. Reste a executer sur le VPS: docker compose logs -f kriyo, docker logs -f <container>, verifier les variables d'environnement runtime et confirmer prisma migrate deploy en prod.

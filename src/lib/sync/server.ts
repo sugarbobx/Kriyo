@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma';
 import { RISK_PROFILE_PRESETS } from '@/lib/risk-profiles';
 import { getSupabaseUser } from '@/lib/supabase/server';
+import { evaluateTradeClosure } from '@/lib/rules/trade';
 import type {
   KriyoComptePropRecord,
   KriyoQueuedMutationRecord,
@@ -124,7 +125,7 @@ async function persistCompteProp(payload: unknown): Promise<SyncResult> {
         userId: identity.id,
         nom: account.nom,
         capital: account.capital,
-        typePayout: account.typePayout,
+        typePayout: account.typePayout as KriyoComptePropRecord['typePayout'],
         profilRisqueId: profilePreset.id
       },
       create: {
@@ -132,7 +133,7 @@ async function persistCompteProp(payload: unknown): Promise<SyncResult> {
         userId: identity.id,
         nom: account.nom,
         capital: account.capital,
-        typePayout: account.typePayout,
+        typePayout: account.typePayout as KriyoComptePropRecord['typePayout'],
         profilRisqueId: profilePreset.id
       }
     });
@@ -250,6 +251,147 @@ async function persistTrade(payload: unknown): Promise<SyncResult> {
   return { ok: true };
 }
 
+
+async function persistTradeClosure(payload: unknown): Promise<SyncResult> {
+  const trade = payload as KriyoTradeRecord;
+  const identity = await getAuthenticatedIdentity();
+
+  if (!identity) {
+    return {
+      ok: false,
+      message: 'Session Supabase introuvable. Reconnecte-toi puis relance la synchronisation.'
+    };
+  }
+
+  if (!Number.isFinite(trade.pnl ?? Number.NaN)) {
+    return {
+      ok: false,
+      message: 'PnL final invalide.'
+    };
+  }
+
+  if (!trade.dateCloture) {
+    return {
+      ok: false,
+      message: 'La date de cloture est manquante.'
+    };
+  }
+
+  const closedAt = trade.dateCloture as string;
+
+  const account = await prisma.compteProp.findUnique({
+    where: { id: trade.comptePropId },
+    select: {
+      userId: true,
+      capital: true,
+      nom: true,
+      typePayout: true,
+      profilRisqueId: true
+    }
+  });
+
+  if (!account) {
+    return {
+      ok: false,
+      message: `Compte prop introuvable pour la cloture du trade ${trade.id}.`
+    };
+  }
+
+  if (account.userId !== identity.id) {
+    return {
+      ok: false,
+      message: "Le compte cible n'appartient pas a l'utilisateur Supabase connecte."
+    };
+  }
+
+  const profilePreset = getProfilePreset(account.profilRisqueId);
+  if (!profilePreset) {
+    return {
+      ok: false,
+      message: `Profil de risque introuvable pour le compte ${account.profilRisqueId}.`
+    };
+  }
+
+  const outcome = evaluateTradeClosure(
+    {
+      id: trade.comptePropId,
+      userId: account.userId,
+      nom: account.nom,
+      capital: account.capital,
+      typePayout: account.typePayout as KriyoComptePropRecord['typePayout'],
+      profilRisqueId: account.profilRisqueId,
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: profilePreset.id,
+      type: profilePreset.type,
+      dailyDD: profilePreset.dailyDD ?? null,
+      maxDD: profilePreset.maxDD ?? null,
+      plafondTP: profilePreset.plafondTP ?? null
+    },
+    trade.pnl ?? 0
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.upsert({
+      where: { id: identity.id },
+      update: { email: normalizeUserEmail(identity.id, identity.email) },
+      create: {
+        id: identity.id,
+        email: normalizeUserEmail(identity.id, identity.email)
+      }
+    });
+
+    await tx.profilRisque.upsert({
+      where: { id: profilePreset.id },
+      update: {
+        type: profilePreset.type,
+        dailyDD: profilePreset.dailyDD ?? null,
+        maxDD: profilePreset.maxDD ?? null,
+        plafondTP: profilePreset.plafondTP ?? null
+      },
+      create: {
+        id: profilePreset.id,
+        type: profilePreset.type,
+        dailyDD: profilePreset.dailyDD ?? null,
+        maxDD: profilePreset.maxDD ?? null,
+        plafondTP: profilePreset.plafondTP ?? null
+      }
+    });
+
+    await tx.trade.upsert({
+      where: { id: trade.id },
+      update: {
+        comptePropId: trade.comptePropId,
+        scoreVR: trade.scoreVR,
+        scoreEP: trade.scoreEP,
+        scoreVP: trade.scoreVP,
+        scoreTotal: trade.scoreTotal,
+        riskReward: trade.riskReward ?? null,
+        pnl: trade.pnl ?? null,
+        statut: outcome.status,
+        dateOuverture: new Date(trade.dateOuverture),
+        dateCloture: new Date(closedAt)
+      },
+      create: {
+        id: trade.id,
+        comptePropId: trade.comptePropId,
+        scoreVR: trade.scoreVR,
+        scoreEP: trade.scoreEP,
+        scoreVP: trade.scoreVP,
+        scoreTotal: trade.scoreTotal,
+        riskReward: trade.riskReward ?? null,
+        pnl: trade.pnl ?? null,
+        statut: outcome.status,
+        dateOuverture: new Date(trade.dateOuverture),
+        dateCloture: new Date(closedAt)
+      }
+    });
+  });
+
+  return { ok: true };
+}
+
 async function persistValidation(payload: unknown): Promise<SyncResult> {
   const validation = payload as KriyoValidationSasRecord;
   const identity = await getAuthenticatedIdentity();
@@ -296,6 +438,8 @@ export async function persistQueuedMutation(item: KriyoQueuedMutationRecord): Pr
         return await persistCompteProp(item.payload);
       case 'trade_opened':
         return await persistTrade(item.payload);
+      case 'trade_closed':
+        return await persistTradeClosure(item.payload);
       case 'validation_sas':
         return await persistValidation(item.payload);
       default:
