@@ -1,0 +1,26 @@
+Kriyo VPS - commandes de diagnostic Docker
+
+1. Aller dans le dossier du projet:
+cd /home/ubuntu/kriyo
+
+2. Suivre les logs du service lance par Docker Compose:
+docker compose -f docker/docker-compose.yml logs -f kriyo
+
+3. Suivre les logs du conteneur directement si tu as l'ID ou le nom du conteneur:
+docker logs -f <container_id_ou_nom>
+
+4. Recuperer automatiquement l'ID du conteneur Kriyo puis suivre les logs:
+docker logs -f "$(docker compose -f docker/docker-compose.yml ps -q kriyo)"
+
+5. Verifier que les variables critiques sont bien injectees dans le conteneur:
+docker compose -f docker/docker-compose.yml exec kriyo env | rg 'DATABASE_URL|SUPABASE|NEXT_PUBLIC'
+
+6. Lancer la migration Prisma manuellement si necessaire:
+docker compose -f docker/docker-compose.yml exec kriyo npm run prisma:deploy
+
+7. Redemarrer proprement le service apres correction d'env ou de migration:
+docker compose -f docker/docker-compose.yml up -d --build kriyo
+
+8. Lire les derniers evenements Docker si le conteneur redemarre en boucle:
+docker compose -f docker/docker-compose.yml ps
+docker inspect "$(docker compose -f docker/docker-compose.yml ps -q kriyo)" --format '{{json .State}}'

@@ -3,7 +3,7 @@ KRIYO - Rapport des taches 1 a 10
 Etat au 2026-08-19
 Progression globale: 90% (9/10)
 Checkpoint local precedent: f8965af
-Commit local suivant: en preparation
+Commit local courant: 0ccf258
 Push final: a effectuer manuellement par le user
 
 1. Finaliser l'integration Supabase securisee et l'environnement de production
@@ -43,5 +43,5 @@ Statut: termine
 Notes: bootstrap SQL ajoute dans supabase/bootstrap.sql et miroir Prisma dans prisma/migrations/20260819_supabase_bootstrap/migration.sql. Docker build genere le client Prisma et lance prisma migrate deploy au demarrage. DATABASE_URL doit pointer vers la base Supabase de production.
 
 10. Verifier build, logs, et preparer le deploiement VPS
-Statut: a faire
-Notes: build Next.js valide localement. Reste a executer sur le VPS: docker compose logs -f kriyo, docker logs -f <container>, verifier les variables d'environnement runtime et confirmer prisma migrate deploy en prod.
+Statut: en preparation
+Notes: build Next.js valide localement. Fichier VPS_LOG_COMMANDS.txt ajoute avec les commandes exactes pour docker compose logs -f kriyo, docker logs -f <container>, verifier les variables d'environnement runtime et lancer prisma migrate deploy sur le VPS.
