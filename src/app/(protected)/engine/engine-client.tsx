@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { getActiveUserId } from '@/lib/auth/client-user';
 import { getKriyoDb, type KriyoComptePropRecord, type KriyoEngineDraftRecord, type KriyoTradeRecord } from '@/lib/db';
 import { enqueueMutation } from '@/lib/sync/queue';
+import { syncQueuedMutations } from '@/lib/sync/client';
 import { APP_BASE_PATH } from '@/lib/app-config';
 
 const questions = [
@@ -165,8 +166,14 @@ export default function EnginePage() {
         updatedAt: openedAt
       });
 
+      try {
+        await syncQueuedMutations();
+        setMessage('Trade approuvé localement et synchronisé sur Supabase. Redirection vers le suivi...');
+      } catch {
+        setMessage('Trade approuvé localement. Synchronisation Supabase en attente. Redirection vers le suivi...');
+      }
+
       setStatus('ready');
-      setMessage('Trade approuvé. Redirection vers le suivi...');
       window.location.assign(`${APP_BASE_PATH}/tracking`);
     } catch {
       setStatus('error');

@@ -47,6 +47,24 @@ async function getAuthenticatedIdentity() {
   };
 }
 
+function validateTradePayload(trade: KriyoTradeRecord) {
+  const scores = [trade.scoreVR, trade.scoreEP, trade.scoreVP];
+
+  if (trade.statut !== 'EN_COURS') {
+    return 'Seuls les trades EN_COURS peuvent etre synchronises.';
+  }
+
+  if (scores.some((score) => !Number.isInteger(score) || score < 0 || score > 3)) {
+    return 'Les sous-scores du trade doivent etre compris entre 0 et 3.';
+  }
+
+  if (trade.scoreTotal !== 9 || trade.scoreVR + trade.scoreEP + trade.scoreVP !== 9) {
+    return 'Le moteur ne synchronise que les trades valides a 9/9.';
+  }
+
+  return null;
+}
+
 async function persistCompteProp(payload: unknown): Promise<SyncResult> {
   const wrappedPayload = payload as {
     account?: KriyoComptePropRecord;
@@ -134,6 +152,14 @@ async function persistTrade(payload: unknown): Promise<SyncResult> {
     };
   }
 
+  const tradeValidationError = validateTradePayload(trade);
+  if (tradeValidationError) {
+    return {
+      ok: false,
+      message: tradeValidationError
+    };
+  }
+
   const account = await prisma.compteProp.findUnique({
     where: { id: trade.comptePropId },
     select: {
@@ -146,6 +172,13 @@ async function persistTrade(payload: unknown): Promise<SyncResult> {
     return {
       ok: false,
       message: `Compte prop introuvable pour le trade ${trade.id}.`
+    };
+  }
+
+  if (account.userId !== identity.id) {
+    return {
+      ok: false,
+      message: 'Le compte cible n\'appartient pas a l\'utilisateur Supabase connecte.'
     };
   }
 

@@ -1,0 +1,45 @@
+KRIYO - Rapport des taches 1 a 10
+
+Etat au 2026-08-19
+Checkpoint local: f8965af
+Push final: a effectuer manuellement par le user
+
+1. Finaliser l'integration Supabase securisee et l'environnement de production
+Statut: termine
+Notes: variables d'environnement documentees, helpers Supabase browser/serveur ajoutes, middleware de session branche.
+
+2. Ajouter les helpers serveur/client Supabase et la recuperation de session
+Statut: termine
+Notes: createSupabaseBrowserClient, createSupabaseServerClient, getSupabaseUser et refreshSupabaseSession en place.
+
+3. Brancher les Server Actions Prisma pour comptes, validation SAS et sync
+Statut: termine
+Notes: persistQueuedMutation controle l'ecriture serveur des comptes, validations et trades de queue.
+
+4. Corriger le routing, la navigation et les ecrans de base
+Statut: termine
+Notes: route Education ajoutee, bottom nav et middleware mis a jour, protections conservees.
+
+5. Commit et push du checkpoint avant de continuer
+Statut: commit local effectue
+Notes: commit local f8965af cree. Push non effectue ici, a faire manuellement par le user.
+
+6. Implementer le moteur 9/9 et la creation de trade cote serveur
+Statut: en cours
+Notes: prochain bloc de travail prioritaire. Validation stricte du score et creation idempotente du trade a renforcer.
+
+7. Implementer le tracking, la cloture PnL et les regles post-trade
+Statut: a faire
+Notes: fermeture trade, saisie PnL, TP force 40%, Daily DD, Max DD, verrouillages a coder.
+
+8. Ajouter l'ecran Education / Glossaire V1
+Statut: termine
+Notes: ecran statique ajoute avec contenu de base et acces protege.
+
+9. Ajouter les migrations / RLS / bootstrap Supabase SQL
+Statut: a faire
+Notes: schema SQL, politiques RLS, bootstrap de prod et verification du DATABASE_URL a finaliser.
+
+10. Verifier build, logs, et preparer le deploiement VPS
+Statut: a faire
+Notes: smoke tests, logs Docker, verification runtime et deploiement final a executer.
