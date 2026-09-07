@@ -10,7 +10,9 @@ import { getKriyoDb, type KriyoComptePropRecord, type KriyoProfilRisqueRecord } 
 import { enqueueMutation } from '@/lib/sync/queue';
 import { syncQueuedMutations } from '@/lib/sync/client';
 import { formatLocalTimestamp } from '@/lib/time';
+import { formatCurrency } from '@/lib/format';
 import { PAYOUT_OPTIONS, PayoutToRiskProfile, RISK_PROFILE_PRESETS, type PayoutType } from '@/lib/risk-profiles';
+import { useLanguage } from '@/lib/i18n/context';
 
 const profileOrder = ['AGRESSIF', 'MODERE', 'CONSERVATEUR'] as const;
 
@@ -26,15 +28,8 @@ const initialForm: FormState = {
   typePayout: 'ON_DEMAND'
 };
 
-function formatCapital(value: number) {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0
-  }).format(value);
-}
-
 export default function AccountsPage() {
+  const { dict, intlLocale } = useLanguage();
   const [userId, setUserId] = useState('local-user');
   const [form, setForm] = useState<FormState>(initialForm);
   const [accounts, setAccounts] = useState<KriyoComptePropRecord[]>([]);
@@ -52,7 +47,7 @@ export default function AccountsPage() {
 
     async function bootstrap() {
       setStatus('loading');
-      setMessage('Chargement des comptes locaux...');
+      setMessage(dict.accounts.loadingMsg);
 
       try {
         const activeUser = await getActiveUser();
@@ -80,11 +75,11 @@ export default function AccountsPage() {
         setProfiles(savedProfiles);
         setAccounts(savedAccounts.filter((account) => account.userId === activeUser.id));
         setStatus('ready');
-        setMessage(savedAccounts.length > 0 ? 'Comptes locaux chargés.' : 'Aucun compte pour le moment.');
+        setMessage(savedAccounts.length > 0 ? dict.accounts.loadedMsg : dict.accounts.noneYetMsg);
       } catch {
         if (cancelled) return;
         setStatus('error');
-        setMessage('Impossible de charger les comptes locaux.');
+        setMessage(dict.accounts.errorLoadMsg);
       }
     }
 
@@ -93,6 +88,7 @@ export default function AccountsPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -103,13 +99,13 @@ export default function AccountsPage() {
     const capital = Number(form.capital);
     if (!form.nom.trim() || !Number.isFinite(capital) || capital <= 0) {
       setStatus('error');
-      setMessage('Renseigne un nom de compte et un capital valide.');
+      setMessage(dict.accounts.invalidFormMsg);
       return;
     }
 
     try {
       setStatus('saving');
-      setMessage('Sauvegarde du compte et du profil de risque...');
+      setMessage(dict.accounts.savingMsg);
 
       const db = await getKriyoDb();
       const activeUser = await getActiveUser(userId);
@@ -153,46 +149,44 @@ export default function AccountsPage() {
         setStatus('ready');
         setMessage(
           syncedCount > 0
-            ? `Compte enregistré localement et synchronisé sur Supabase. Profil de risque configuré: ${preset.label}.`
-            : `Compte enregistré localement. Profil de risque configuré: ${preset.label}.`
+            ? `${dict.accounts.syncedMsgPrefix} ${preset.label}.`
+            : `${dict.accounts.savedLocalMsgPrefix} ${preset.label}.`
         );
       } catch {
         setStatus('ready');
-        setMessage(
-          `Compte enregistré localement. Synchronisation Supabase en attente. Profil de risque configuré: ${preset.label}.`
-        );
+        setMessage(`${dict.accounts.pendingSyncMsgPrefix} ${preset.label}.`);
       }
     } catch {
       setStatus('error');
-      setMessage('Impossible d’enregistrer le compte localement.');
+      setMessage(dict.accounts.errorSaveMsg);
     }
   }
 
   return (
-    <AppShell title="Comptes & Onboarding" subtitle="Configuration des comptes prop firm et des profils de risque.">
+    <AppShell title={dict.accounts.title} subtitle={dict.accounts.subtitle}>
       <div className="space-y-4">
         <Card className="p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="font-medium text-kriyo-text">Création locale</p>
-              <p className="mt-1 text-sm text-kriyo-dim">Nom, capital et payout suffisent. Le profil de risque est assigné automatiquement.</p>
+              <p className="font-medium text-kriyo-text">{dict.accounts.creationTitle}</p>
+              <p className="mt-1 text-sm text-kriyo-dim">{dict.accounts.creationDescription}</p>
             </div>
-            <Badge className="border-kriyo-amber/30 bg-kriyo-amber/10 text-kriyo-amber">Sprint 2</Badge>
+            <Badge className="border-kriyo-amber/30 bg-kriyo-amber/10 text-kriyo-amber">{dict.accounts.sprintBadge}</Badge>
           </div>
           <form className="mt-4 space-y-3" onSubmit={handleSubmit}>
             <div className="space-y-2">
-              <label className="text-xs uppercase tracking-[0.14em] text-kriyo-dim" htmlFor="nom">Nom du compte</label>
+              <label className="text-xs uppercase tracking-[0.14em] text-kriyo-dim" htmlFor="nom">{dict.accounts.nameLabel}</label>
               <input
                 id="nom"
                 value={form.nom}
                 onChange={(event) => setForm((current) => ({ ...current, nom: event.target.value }))}
                 className="w-full rounded-xl border border-kriyo-borderSoft bg-kriyo-bg px-4 py-3 text-sm text-kriyo-text outline-none transition placeholder:text-kriyo-faint focus:border-kriyo-cyan"
-                placeholder="FTMO 5K"
+                placeholder={dict.accounts.namePlaceholder}
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-[0.14em] text-kriyo-dim" htmlFor="capital">Capital initial</label>
+                <label className="text-xs uppercase tracking-[0.14em] text-kriyo-dim" htmlFor="capital">{dict.accounts.capitalLabel}</label>
                 <input
                   id="capital"
                   type="number"
@@ -205,7 +199,7 @@ export default function AccountsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs uppercase tracking-[0.14em] text-kriyo-dim" htmlFor="payout">Type de payout</label>
+                <label className="text-xs uppercase tracking-[0.14em] text-kriyo-dim" htmlFor="payout">{dict.accounts.payoutLabel}</label>
                 <select
                   id="payout"
                   value={form.typePayout}
@@ -221,14 +215,14 @@ export default function AccountsPage() {
               </div>
             </div>
             <Button className="w-full" disabled={status === 'saving'} type="submit">
-              {status === 'saving' ? 'Sauvegarde...' : 'Ajouter un compte'}
+              {status === 'saving' ? dict.accounts.savingButton : dict.accounts.addButton}
             </Button>
             <p className={status === 'error' ? 'text-xs leading-5 text-kriyo-danger' : 'text-xs leading-5 text-kriyo-dim'}>{message}</p>
           </form>
         </Card>
 
         <Card className="p-4">
-          <p className="text-sm font-medium text-kriyo-text">Profils de risque actifs</p>
+          <p className="text-sm font-medium text-kriyo-text">{dict.accounts.activeRiskProfilesTitle}</p>
           <div className="mt-3 grid gap-3">
             {profileOrder.map((type) => {
               const profile = profileByType[type];
@@ -240,10 +234,12 @@ export default function AccountsPage() {
                       <p className="text-sm font-medium text-kriyo-text">{preset.label}</p>
                       <p className="mt-1 text-xs text-kriyo-dim">{preset.note}</p>
                     </div>
-                    <Badge className="border-kriyo-borderSoft bg-kriyo-elevated text-kriyo-dim">{profile ? 'seeded' : 'preset'}</Badge>
+                    <Badge className="border-kriyo-borderSoft bg-kriyo-elevated text-kriyo-dim">{profile ? dict.accounts.seededLabel : dict.accounts.presetLabel}</Badge>
                   </div>
                   <p className="mt-3 text-xs text-kriyo-dim">
-                    {preset.plafondTP ? `TP forcé ${preset.plafondTP}%` : `Daily DD ${preset.dailyDD ?? '—'}% · Max DD ${preset.maxDD ?? '—'}%`}
+                    {preset.plafondTP
+                      ? `${dict.accounts.tpForcedPrefix} ${preset.plafondTP}%`
+                      : `${dict.accounts.dailyDDLabel} ${preset.dailyDD ?? '—'}% · ${dict.accounts.maxDDLabel} ${preset.maxDD ?? '—'}%`}
                   </p>
                 </div>
               );
@@ -253,12 +249,12 @@ export default function AccountsPage() {
 
         <Card className="p-4">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-medium text-kriyo-text">Comptes enregistrés</p>
+            <p className="text-sm font-medium text-kriyo-text">{dict.accounts.registeredAccountsTitle}</p>
             <Badge className="border-kriyo-success/30 bg-kriyo-success/10 text-kriyo-success">{accounts.length}</Badge>
           </div>
           <div className="mt-3 space-y-3">
             {accounts.length === 0 ? (
-              <p className="text-sm text-kriyo-dim">Aucun compte local pour le moment.</p>
+              <p className="text-sm text-kriyo-dim">{dict.accounts.noAccountsYet}</p>
             ) : (
               accounts.map((account) => {
                 const profile = profiles.find((item) => item.id === account.profilRisqueId);
@@ -268,12 +264,12 @@ export default function AccountsPage() {
                       <div>
                         <p className="text-sm font-medium text-kriyo-text">{account.nom}</p>
                         <p className="mt-1 text-xs text-kriyo-dim">
-                          {formatCapital(account.capital)} · {account.typePayout}
+                          {formatCurrency(account.capital, intlLocale)} · {account.typePayout}
                         </p>
                       </div>
                       <Badge className="border-kriyo-cyan/30 bg-kriyo-cyan/10 text-kriyo-cyan">{profile?.type ?? '—'}</Badge>
                     </div>
-                    <p className="mt-3 text-xs text-kriyo-dim">Créé {formatLocalTimestamp(account.createdAt)}</p>
+                    <p className="mt-3 text-xs text-kriyo-dim">{dict.accounts.createdPrefix} {formatLocalTimestamp(account.createdAt, intlLocale)}</p>
                   </div>
                 );
               })

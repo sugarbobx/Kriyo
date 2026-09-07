@@ -10,15 +10,10 @@ import { getKriyoDb, type KriyoComptePropRecord, type KriyoProfilRisqueRecord, t
 import { enqueueMutation } from '@/lib/sync/queue';
 import { syncQueuedMutations } from '@/lib/sync/client';
 import { formatLocalTimestamp } from '@/lib/time';
-import { evaluateTradeClosure } from '@/lib/rules/trade';
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0
-  }).format(value);
-}
+import { formatCurrency } from '@/lib/format';
+import { evaluateTradeClosure, type TradeClosureOutcome } from '@/lib/rules/trade';
+import { useLanguage } from '@/lib/i18n/context';
+import { interpolate, type Dictionary } from '@/lib/i18n/translations';
 
 function tradeBadgeClass(status: KriyoTradeRecord['statut']) {
   switch (status) {
@@ -31,13 +26,28 @@ function tradeBadgeClass(status: KriyoTradeRecord['statut']) {
   }
 }
 
+function outcomeText(outcome: TradeClosureOutcome, dict: Dictionary, intlLocale: string) {
+  const amount = formatCurrency(outcome.amount, intlLocale);
+  switch (outcome.reasonKey) {
+    case 'takeProfitForced':
+      return { label: dict.tradeClosure.takeProfitForcedLabel, reason: interpolate(dict.tradeClosure.takeProfitForcedReason, { amount }) };
+    case 'dailyDrawdown':
+      return { label: dict.tradeClosure.dailyDrawdownLabel, reason: interpolate(dict.tradeClosure.dailyDrawdownReason, { amount }) };
+    case 'maxDrawdown':
+      return { label: dict.tradeClosure.maxDrawdownLabel, reason: interpolate(dict.tradeClosure.maxDrawdownReason, { amount }) };
+    default:
+      return { label: dict.tradeClosure.loggedLabel, reason: interpolate(dict.tradeClosure.loggedReason, { amount }) };
+  }
+}
+
 export default function TrackingPage() {
+  const { dict, intlLocale } = useLanguage();
   const [userId, setUserId] = useState('local-user');
   const [accounts, setAccounts] = useState<KriyoComptePropRecord[]>([]);
   const [profiles, setProfiles] = useState<KriyoProfilRisqueRecord[]>([]);
   const [trades, setTrades] = useState<KriyoTradeRecord[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'saving'>('loading');
-  const [message, setMessage] = useState('Chargement du suivi...');
+  const [message, setMessage] = useState(dict.tracking.loadingMsg);
   const [closingTradeId, setClosingTradeId] = useState<string | null>(null);
   const [closingPnl, setClosingPnl] = useState('');
   const [closingError, setClosingError] = useState('');
@@ -67,7 +77,7 @@ export default function TrackingPage() {
     async function bootstrap() {
       try {
         setStatus('loading');
-        setMessage('Chargement du suivi...');
+        setMessage(dict.tracking.loadingMsg);
 
         const activeUserId = await getActiveUserId();
         if (cancelled) return;
@@ -88,11 +98,11 @@ export default function TrackingPage() {
         setAccounts(userAccounts);
         setTrades(userTrades);
         setStatus('ready');
-        setMessage(userTrades.length > 0 ? 'Trades locaux chargés.' : 'Aucun trade ouvert pour le moment.');
+        setMessage(userTrades.length > 0 ? dict.tracking.loadedMsg : dict.tracking.noneOpenMsg);
       } catch {
         if (cancelled) return;
         setStatus('error');
-        setMessage('Impossible de charger le suivi localement.');
+        setMessage(dict.tracking.errorLoadMsg);
       }
     }
 
@@ -101,6 +111,7 @@ export default function TrackingPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleCloseTrade(event: FormEvent<HTMLFormElement>) {
@@ -112,14 +123,14 @@ export default function TrackingPage() {
 
     const pnl = Number(closingPnl);
     if (!Number.isFinite(pnl)) {
-      setClosingError('Renseigne un PnL valide.');
+      setClosingError(dict.tracking.invalidPnlMsg);
       return;
     }
 
     try {
       setStatus('saving');
       setClosingError('');
-      setMessage('Cloture du trade et calcul des regles...');
+      setMessage(dict.tracking.closingMsg);
 
       const db = await getKriyoDb();
       const closedAt = new Date().toISOString();
@@ -134,11 +145,13 @@ export default function TrackingPage() {
       await db.put('trades', closedTrade);
       await enqueueMutation('trade_closed', closedTrade);
 
+      const { reason } = outcomeText(outcome, dict, intlLocale);
+
       try {
         await syncQueuedMutations();
-        setMessage(`${outcome.reason} Trade synchronise sur Supabase.`);
+        setMessage(`${reason} ${dict.tracking.syncedSuffix}`);
       } catch {
-        setMessage(`${outcome.reason} Synchronisation Supabase en attente.`);
+        setMessage(`${reason} ${dict.tracking.pendingSyncSuffix}`);
       }
 
       setTrades((current) => current.map((trade) => (trade.id === closedTrade.id ? closedTrade : trade)));
@@ -147,26 +160,26 @@ export default function TrackingPage() {
       setStatus('ready');
     } catch {
       setStatus('error');
-      setMessage('Impossible de cloturer le trade localement.');
+      setMessage(dict.tracking.errorCloseMsg);
     }
   }
 
   return (
-    <AppShell title="Suivi des Positions" subtitle="Jauges de santé, trades ouverts et clôture PnL.">
+    <AppShell title={dict.tracking.title} subtitle={dict.tracking.subtitle}>
       <div className="space-y-4">
         <Card className="p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="font-medium text-kriyo-text">Vue de santé</p>
-              <p className="mt-1 text-sm text-kriyo-dim">Chaque compte affiche son état de risque et ses trades ouverts.</p>
+              <p className="font-medium text-kriyo-text">{dict.tracking.healthViewTitle}</p>
+              <p className="mt-1 text-sm text-kriyo-dim">{dict.tracking.healthViewDescription}</p>
             </div>
             <Badge className={status === 'error' ? 'border-kriyo-danger/30 bg-kriyo-danger/10 text-kriyo-danger' : 'border-kriyo-success/30 bg-kriyo-success/10 text-kriyo-success'}>
-              {accounts.length} comptes
+              {accounts.length} {dict.tracking.accountsSuffix}
             </Badge>
           </div>
           <div className="mt-4 space-y-3">
             {accounts.length === 0 ? (
-              <p className="text-sm text-kriyo-dim">Aucun compte lié. Crée un compte dans Comptes & Onboarding, puis exécute un trade depuis le moteur.</p>
+              <p className="text-sm text-kriyo-dim">{dict.tracking.noLinkedAccounts}</p>
             ) : (
               accounts.map((account, index) => {
                 const trade = tradesByAccount[account.id];
@@ -177,11 +190,11 @@ export default function TrackingPage() {
                       <div>
                         <p className="text-sm font-medium text-kriyo-text">{account.nom}</p>
                         <p className="mt-1 text-xs text-kriyo-dim">
-                          {account.typePayout} · {account.capital.toLocaleString('fr-FR')} USD · {profile?.type ?? '—'}
+                          {account.typePayout} · {formatCurrency(account.capital, intlLocale)} · {profile?.type ?? '—'}
                         </p>
                       </div>
                       <Badge className={trade ? tradeBadgeClass(trade.statut) : 'border-kriyo-borderSoft bg-kriyo-elevated text-kriyo-dim'}>
-                        {trade ? trade.statut : 'Aucun trade'}
+                        {trade ? trade.statut : dict.tracking.noTradeBadge}
                       </Badge>
                     </div>
                     <div className="mt-3 h-2 overflow-hidden rounded-full bg-kriyo-borderSoft">
@@ -191,7 +204,9 @@ export default function TrackingPage() {
                       />
                     </div>
                     <p className="mt-3 text-xs text-kriyo-dim">
-                      {trade ? `Trade ${trade.statut.toLowerCase()} le ${formatLocalTimestamp(trade.dateOuverture)}` : 'En attente d’un trade validé.'}
+                      {trade
+                        ? `${dict.tracking.tradeOpenedOnPrefix} ${trade.statut.toLowerCase()} ${dict.tracking.onDate} ${formatLocalTimestamp(trade.dateOuverture, intlLocale)}`
+                        : dict.tracking.waitingForValidTrade}
                     </p>
                   </div>
                 );
@@ -203,14 +218,14 @@ export default function TrackingPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="font-medium text-kriyo-text">Trades actifs</p>
-              <p className="mt-1 text-sm text-kriyo-dim">Les positions créées par le moteur apparaissent ici.</p>
+              <p className="font-medium text-kriyo-text">{dict.tracking.activeTradesTitle}</p>
+              <p className="mt-1 text-sm text-kriyo-dim">{dict.tracking.activeTradesDescription}</p>
             </div>
             <Badge className="border-kriyo-cyan/30 bg-kriyo-cyan/10 text-kriyo-cyan">{openTrades.length}</Badge>
           </div>
           <div className="mt-4 space-y-3">
             {trades.length === 0 ? (
-              <p className="text-sm text-kriyo-dim">Aucun trade actif pour le moment.</p>
+              <p className="text-sm text-kriyo-dim">{dict.tracking.noActiveTrades}</p>
             ) : (
               trades.map((trade) => {
                 const account = accounts.find((item) => item.id === trade.comptePropId);
@@ -221,7 +236,7 @@ export default function TrackingPage() {
                       <div>
                         <p className="text-sm font-medium text-kriyo-text">{account?.nom ?? `Trade ${trade.comptePropId.slice(0, 8)}`}</p>
                         <p className="mt-1 text-xs text-kriyo-dim">
-                          Ouvert le {formatLocalTimestamp(trade.dateOuverture)} · {profile?.type ?? '—'}
+                          {dict.tracking.openedOnPrefix} {formatLocalTimestamp(trade.dateOuverture, intlLocale)} · {profile?.type ?? '—'}
                         </p>
                       </div>
                       <Badge className={tradeBadgeClass(trade.statut)}>{trade.scoreTotal}/9</Badge>
@@ -232,14 +247,14 @@ export default function TrackingPage() {
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <p className="text-xs text-kriyo-dim">
-                        {trade.pnl == null ? 'PnL en attente' : `PnL ${formatCurrency(trade.pnl)}`}
+                        {trade.pnl == null ? dict.tracking.pnlPending : `${dict.tracking.pnlPrefix} ${formatCurrency(trade.pnl, intlLocale)}`}
                       </p>
                       {trade.statut === 'EN_COURS' ? (
                         <Button type="button" variant="secondary" onClick={() => setClosingTradeId(trade.id)}>
-                          Fermer la position
+                          {dict.tracking.closePositionButton}
                         </Button>
                       ) : (
-                        <span className="text-xs text-kriyo-dim">Cloture enregistree</span>
+                        <span className="text-xs text-kriyo-dim">{dict.tracking.closureRecorded}</span>
                       )}
                     </div>
                   </div>
@@ -251,7 +266,7 @@ export default function TrackingPage() {
 
         <p className={status === 'error' ? 'text-xs leading-5 text-kriyo-danger' : 'text-xs leading-5 text-kriyo-dim'}>{message}</p>
         <Button className="w-full" variant="secondary" onClick={() => window.location.reload()} type="button">
-          Rafraîchir le suivi
+          {dict.tracking.refreshButton}
         </Button>
       </div>
 
@@ -260,9 +275,9 @@ export default function TrackingPage() {
           <div className="w-full max-w-md rounded-3xl border border-kriyo-borderSoft bg-kriyo-elevated p-4 shadow-2xl shadow-black/40">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-kriyo-cyan">Cloture PnL</p>
+                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-kriyo-cyan">{dict.tracking.modalTitle}</p>
                 <h3 className="mt-2 text-lg font-semibold text-kriyo-text">{closingAccount.nom}</h3>
-                <p className="mt-1 text-sm text-kriyo-dim">{closingProfile.type} · {closingAccount.capital.toLocaleString('fr-FR')} USD</p>
+                <p className="mt-1 text-sm text-kriyo-dim">{closingProfile.type} · {formatCurrency(closingAccount.capital, intlLocale)}</p>
               </div>
               <button
                 type="button"
@@ -273,14 +288,14 @@ export default function TrackingPage() {
                 }}
                 className="rounded-full border border-kriyo-borderSoft px-3 py-1 text-xs text-kriyo-dim"
               >
-                Fermer
+                {dict.common.close}
               </button>
             </div>
 
             <form className="mt-4 space-y-3" onSubmit={handleCloseTrade}>
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-[0.14em] text-kriyo-dim" htmlFor="pnl">
-                  PnL final
+                  {dict.tracking.finalPnlLabel}
                 </label>
                 <input
                   id="pnl"
@@ -295,11 +310,18 @@ export default function TrackingPage() {
 
               {closingOutcome ? (
                 <div className={`rounded-2xl border px-4 py-3 text-sm ${closingOutcome.status === 'VERROUILLE' ? 'border-kriyo-danger/30 bg-kriyo-danger/10 text-kriyo-danger' : 'border-kriyo-success/30 bg-kriyo-success/10 text-kriyo-success'}`}>
-                  <p className="font-medium">{closingOutcome.label}</p>
-                  <p className="mt-1 text-xs opacity-90">{closingOutcome.reason}</p>
+                  {(() => {
+                    const { label, reason } = outcomeText(closingOutcome, dict, intlLocale);
+                    return (
+                      <>
+                        <p className="font-medium">{label}</p>
+                        <p className="mt-1 text-xs opacity-90">{reason}</p>
+                      </>
+                    );
+                  })()}
                 </div>
               ) : (
-                <p className="text-xs text-kriyo-dim">Saisis un PnL pour calculer le statut final.</p>
+                <p className="text-xs text-kriyo-dim">{dict.tracking.typeToConfirm}</p>
               )}
 
               {closingError ? <p className="text-xs leading-5 text-kriyo-danger">{closingError}</p> : null}
@@ -314,10 +336,10 @@ export default function TrackingPage() {
                     setClosingError('');
                   }}
                 >
-                  Annuler
+                  {dict.tracking.cancelButton}
                 </Button>
                 <Button type="submit" disabled={status === 'saving'}>
-                  {status === 'saving' ? 'Cloture...' : 'Valider le résultat'}
+                  {status === 'saving' ? dict.tracking.closingButton : dict.tracking.validateResultButton}
                 </Button>
               </div>
             </form>

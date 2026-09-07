@@ -48,6 +48,7 @@ export interface KriyoValidationSasRecord {
   alignement: boolean;
   valide: boolean;
   dateValidation: string;
+  lockExpiresAt?: string | null;
 }
 
 export interface KriyoSessionRecord {
@@ -74,6 +75,16 @@ export interface KriyoQueuedMutationRecord {
   type: string;
   payload: unknown;
   createdAt: string;
+}
+
+export interface KriyoGamificationRecord {
+  id: string;
+  userId: string;
+  xp: number;
+  perfectSetupsCount: number;
+  currentStreak: number;
+  bestStreak: number;
+  updatedAt: string;
 }
 
 export interface KriyoDBSchema extends DBSchema {
@@ -109,12 +120,16 @@ export interface KriyoDBSchema extends DBSchema {
     key: string;
     value: KriyoQueuedMutationRecord;
   };
+  gamification: {
+    key: string;
+    value: KriyoGamificationRecord;
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<KriyoDBSchema>> | null = null;
 
 export function getKriyoDb() {
-  dbPromise ??= openDB<KriyoDBSchema>('kriyo-offline', 3, {
+  dbPromise ??= openDB<KriyoDBSchema>('kriyo-offline', 4, {
     upgrade(db) {
       const stores = [
         'users',
@@ -124,7 +139,8 @@ export function getKriyoDb() {
         'validationsSas',
         'sessions',
         'engineDrafts',
-        'queue'
+        'queue',
+        'gamification'
       ] as const;
 
       for (const storeName of stores) {

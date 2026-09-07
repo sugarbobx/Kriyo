@@ -6,6 +6,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 import { cn } from '@/lib/utils';
 import { useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { useLanguage } from '@/lib/i18n/context';
 
 interface AuthFormProps {
   mode: 'login' | 'signup';
@@ -16,6 +17,7 @@ type Status = 'idle' | 'loading' | 'success' | 'error';
 
 export function AuthForm({ mode, nextPath = '/sas' }: AuthFormProps) {
   const router = useRouter();
+  const { dict } = useLanguage();
   const supabase = useMemo(() => {
     try {
       return createSupabaseBrowserClient();
@@ -35,9 +37,7 @@ export function AuthForm({ mode, nextPath = '/sas' }: AuthFormProps) {
 
     if (!supabase) {
       setStatus('error');
-      setMessage(
-        'Variables Supabase manquantes. Renseigne NEXT_PUBLIC_SUPABASE_URL et NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ou NEXT_PUBLIC_SUPABASE_ANON_KEY.'
-      );
+      setMessage(dict.auth.missingSupabaseVars);
       return;
     }
 
@@ -79,7 +79,7 @@ export function AuthForm({ mode, nextPath = '/sas' }: AuthFormProps) {
     }
 
     setStatus('success');
-    setMessage('Compte créé. Vérifie ta boîte mail si la confirmation est activée.');
+    setMessage(dict.auth.accountCreatedMsg);
   }
 
   return (
@@ -87,7 +87,7 @@ export function AuthForm({ mode, nextPath = '/sas' }: AuthFormProps) {
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div className="space-y-2">
           <label className="text-xs uppercase tracking-[0.14em] text-kriyo-dim" htmlFor="email">
-            Email
+            {dict.auth.emailLabel}
           </label>
           <input
             id="email"
@@ -101,7 +101,7 @@ export function AuthForm({ mode, nextPath = '/sas' }: AuthFormProps) {
         </div>
         <div className="space-y-2">
           <label className="text-xs uppercase tracking-[0.14em] text-kriyo-dim" htmlFor="password">
-            Password
+            {dict.auth.passwordLabel}
           </label>
           <input
             id="password"
@@ -114,7 +114,7 @@ export function AuthForm({ mode, nextPath = '/sas' }: AuthFormProps) {
           />
         </div>
         <Button className="w-full" disabled={!canSubmit} type="submit">
-          {status === 'loading' ? 'Chargement...' : mode === 'login' ? 'Se connecter' : 'Créer le compte'}
+          {status === 'loading' ? dict.auth.loadingButton : mode === 'login' ? dict.auth.loginButton : dict.auth.signupButton}
         </Button>
         <p
           aria-live="polite"
@@ -123,7 +123,7 @@ export function AuthForm({ mode, nextPath = '/sas' }: AuthFormProps) {
             status === 'error' ? 'text-kriyo-danger' : status === 'success' ? 'text-kriyo-success' : 'text-kriyo-dim'
           )}
         >
-          {message || 'L’authentification Supabase email/password est branchée directement depuis le navigateur.'}
+          {message || dict.auth.defaultHelper}
         </p>
       </form>
     </Card>

@@ -10,18 +10,22 @@ import { enqueueMutation } from '@/lib/sync/queue';
 import { getActiveUserId } from '@/lib/auth/client-user';
 import { getKriyoDb, type KriyoValidationSasRecord } from '@/lib/db';
 import { buildKriyoSessionCookie, clearKriyoSessionCookie } from '@/lib/session';
-import { formatLocalTimestamp, getLocalDateKey, getMillisecondsUntilNextLocalMidnight, getNextLocalMidnight } from '@/lib/time';
+import { formatCountdown, formatLocalTimestamp, getLocalDateKey, getNextLocalMidnight } from '@/lib/time';
 import { APP_BASE_PATH } from '@/lib/app-config';
+import { useLanguage } from '@/lib/i18n/context';
 
-const criteria = [
-  { key: 'tension', label: 'Tension', description: 'État mental et physique stable', group: 'Psy' },
-  { key: 'ecran', label: 'Écran', description: 'Temps d’écran sous contrôle', group: 'Psy' },
-  { key: 'telephone', label: 'Téléphone', description: 'Distractions minimisées', group: 'Psy' },
-  { key: 'macro', label: 'Macro', description: 'Calendrier macro acceptable', group: 'Tech' },
-  { key: 'alignement', label: 'Alignement', description: 'Contexte marché aligné', group: 'Tech' }
-] as const;
+const LOCK_DURATION_MS = 30 * 60 * 1000;
 
-type CriterionKey = (typeof criteria)[number]['key'];
+const criteriaKeys = ['tension', 'ecran', 'telephone', 'macro', 'alignement'] as const;
+const criteriaGroup: Record<(typeof criteriaKeys)[number], 'psy' | 'tech'> = {
+  tension: 'psy',
+  ecran: 'psy',
+  telephone: 'psy',
+  macro: 'tech',
+  alignement: 'tech'
+};
+
+type CriterionKey = (typeof criteriaKeys)[number];
 type SasValues = Record<CriterionKey, boolean>;
 
 const defaultValues: SasValues = {
@@ -41,16 +45,18 @@ function setCookie(value: string) {
 }
 
 export default function SasPage() {
+  const { dict, intlLocale } = useLanguage();
   const [userId, setUserId] = useState('local-user');
   const [dayKey, setDayKey] = useState(() => getLocalDateKey());
   const [values, setValues] = useState<SasValues>(defaultValues);
   const [status, setStatus] = useState<'loading' | 'ready' | 'locked' | 'saved' | 'error'>('loading');
-  const [message, setMessage] = useState('Chargement de la validation du jour...');
-  const [lockedUntil, setLockedUntil] = useState<string | null>(null);
+  const [message, setMessage] = useState(dict.sas.loadingMsg);
+  const [lockExpiresAt, setLockExpiresAt] = useState<string | null>(null);
+  const [remainingMs, setRemainingMs] = useState<number | null>(null);
   const [lastValidationAt, setLastValidationAt] = useState<string | null>(null);
 
   const score = useMemo(() => Object.values(values).filter(Boolean).length, [values]);
-  const gateOpen = score === criteria.length;
+  const gateOpen = score === criteriaKeys.length;
   const isLocked = status === 'locked';
   const isLoading = status === 'loading';
 
@@ -59,7 +65,7 @@ export default function SasPage() {
 
     async function bootstrap() {
       setStatus('loading');
-      setMessage('Chargement de la validation du jour...');
+      setMessage(dict.sas.loadingMsg);
 
       try {
         const activeUserId = await getActiveUserId();
@@ -72,26 +78,44 @@ export default function SasPage() {
         if (cancelled) return;
 
         if (existing) {
-          setValues({
-            tension: existing.tension,
-            ecran: existing.ecran,
-            telephone: existing.telephone,
-            macro: existing.macro,
-            alignement: existing.alignement
-          });
           setLastValidationAt(existing.dateValidation);
 
           if (existing.valide) {
+            setValues({
+              tension: existing.tension,
+              ecran: existing.ecran,
+              telephone: existing.telephone,
+              macro: existing.macro,
+              alignement: existing.alignement
+            });
             setCookie(buildKriyoSessionCookie(getNextLocalMidnight()));
             setStatus('saved');
-            setLockedUntil(null);
-            setMessage('Sas déjà validé aujourd’hui. Tu peux entrer dans le dashboard.');
-          } else {
-            setCookie(clearKriyoSessionCookie());
-            const nextMidnight = getNextLocalMidnight();
+            setLockExpiresAt(null);
+            setMessage(dict.sas.savedMsg);
+            return;
+          }
+
+          const lockExpiry = existing.lockExpiresAt ? new Date(existing.lockExpiresAt) : null;
+          const stillLocked = lockExpiry != null && lockExpiry.getTime() > Date.now();
+
+          setCookie(clearKriyoSessionCookie());
+
+          if (stillLocked) {
+            setValues({
+              tension: existing.tension,
+              ecran: existing.ecran,
+              telephone: existing.telephone,
+              macro: existing.macro,
+              alignement: existing.alignement
+            });
             setStatus('locked');
-            setLockedUntil(nextMidnight.toISOString());
-            setMessage('Sas verrouillé jusqu’au prochain minuit local.');
+            setLockExpiresAt(existing.lockExpiresAt ?? null);
+            setMessage(dict.sas.lockedMsgPrefix);
+          } else {
+            setValues(defaultValues);
+            setStatus('ready');
+            setLockExpiresAt(null);
+            setMessage(dict.sas.readyMsg);
           }
           return;
         }
@@ -99,13 +123,13 @@ export default function SasPage() {
         setCookie(clearKriyoSessionCookie());
         setValues(defaultValues);
         setLastValidationAt(null);
-        setLockedUntil(null);
+        setLockExpiresAt(null);
         setStatus('ready');
-        setMessage('Active les 5 critères puis valide la session.');
+        setMessage(dict.sas.readyMsg);
       } catch {
         if (cancelled) return;
         setStatus('error');
-        setMessage('Impossible de charger le sas localement.');
+        setMessage(dict.sas.errorLoadMsg);
       }
     }
 
@@ -114,17 +138,43 @@ export default function SasPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayKey]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDayKey(getLocalDateKey());
-    }, getMillisecondsUntilNextLocalMidnight());
+    }, 24 * 60 * 60 * 1000);
 
     return () => window.clearTimeout(timeout);
   }, [dayKey]);
 
-  async function persistValidation(valid: boolean) {
+  useEffect(() => {
+    if (status !== 'locked' || !lockExpiresAt) {
+      setRemainingMs(null);
+      return;
+    }
+
+    function tick() {
+      const remaining = new Date(lockExpiresAt as string).getTime() - Date.now();
+      if (remaining <= 0) {
+        setStatus('ready');
+        setValues(defaultValues);
+        setLockExpiresAt(null);
+        setRemainingMs(null);
+        setMessage(dict.sas.lockExpiredMsg);
+        return;
+      }
+      setRemainingMs(remaining);
+    }
+
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, lockExpiresAt]);
+
+  async function persistValidation(valid: boolean, nextLockExpiresAt: string | null) {
     const db = await getKriyoDb();
     const dateValidation = new Date().toISOString();
     const record: KriyoValidationSasRecord = {
@@ -136,7 +186,8 @@ export default function SasPage() {
       macro: values.macro,
       alignement: values.alignement,
       valide: valid,
-      dateValidation
+      dateValidation,
+      lockExpiresAt: nextLockExpiresAt
     };
 
     await db.put('validationsSas', record);
@@ -149,7 +200,7 @@ export default function SasPage() {
 
     try {
       if (gateOpen) {
-        const record = await persistValidation(true);
+        const record = await persistValidation(true, null);
         await getKriyoDb().then((db) =>
           db.put('sessions', {
             id: `session-${userId}-${dayKey}`,
@@ -160,75 +211,76 @@ export default function SasPage() {
         );
         setCookie(buildKriyoSessionCookie(getNextLocalMidnight()));
         setStatus('saved');
-        setMessage('Sas validé. Redirection vers le dashboard...');
+        setMessage(dict.sas.validatingMsg);
         window.location.assign(`${APP_BASE_PATH}/dashboard`);
         return;
       }
 
-      const record = await persistValidation(false);
-      const nextMidnight = getNextLocalMidnight();
+      const nextLockExpiresAt = new Date(Date.now() + LOCK_DURATION_MS).toISOString();
+      const record = await persistValidation(false, nextLockExpiresAt);
       setCookie(clearKriyoSessionCookie());
       setStatus('locked');
-      setLockedUntil(nextMidnight.toISOString());
+      setLockExpiresAt(nextLockExpiresAt);
       setLastValidationAt(record.dateValidation);
-      setMessage('Un ou plusieurs critères sont à OFF. Sas verrouillé jusqu’à demain à minuit.');
+      setMessage(dict.sas.lockedMsgPrefix);
     } catch {
       setStatus('error');
-      setMessage('Impossible d’enregistrer la validation locale.');
+      setMessage(dict.sas.errorSaveMsg);
     }
   }
 
   return (
-    <AppShell title="Sas de Sécurité" subtitle="Porte obligatoire avant toute session de trading.">
+    <AppShell title={dict.sas.title} subtitle={dict.sas.subtitle}>
       <div className="space-y-4">
         <Card className={isLocked ? 'border-kriyo-danger/40 bg-kriyo-danger/10 p-4' : gateOpen ? 'border-kriyo-success/40 bg-kriyo-success/10 p-4' : 'border-kriyo-borderSoft bg-kriyo-bg p-4'}>
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-2">
               <Badge className={isLocked ? 'border-kriyo-danger/30 bg-kriyo-danger/10 text-kriyo-danger' : gateOpen ? 'border-kriyo-success/30 bg-kriyo-success/10 text-kriyo-success' : 'border-kriyo-amber/30 bg-kriyo-amber/10 text-kriyo-amber'}>
-                {status === 'saved' ? 'Session validée' : isLocked ? 'Session bloquée' : 'Sas en contrôle'}
+                {status === 'saved' ? dict.sas.badgeSaved : isLocked ? dict.sas.badgeLocked : dict.sas.badgeControl}
               </Badge>
               <p className="text-sm text-kriyo-text">{message}</p>
+              {isLocked && remainingMs != null ? (
+                <p className="font-mono text-3xl font-semibold tracking-tight text-kriyo-danger">{formatCountdown(remainingMs)}</p>
+              ) : null}
               <p className="text-xs text-kriyo-dim">
-                {status === 'locked'
-                  ? `Réinitialisation automatique ${lockedUntil ? `le ${formatLocalTimestamp(lockedUntil)}` : 'à minuit local'}.`
+                {isLocked
+                  ? dict.sas.timerCountdownLabel
                   : lastValidationAt
-                    ? `Dernière validation locale: ${formatLocalTimestamp(lastValidationAt)}`
-                    : 'Aucune validation locale enregistrée aujourd’hui.'}
+                    ? `${dict.sas.lastValidationPrefix} ${formatLocalTimestamp(lastValidationAt, intlLocale)}`
+                    : dict.sas.noValidation}
               </p>
             </div>
             <div className="rounded-2xl border border-kriyo-borderSoft bg-kriyo-elevated px-4 py-3 text-right">
-              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-kriyo-dim">Score</p>
+              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-kriyo-dim">{dict.sas.scoreLabel}</p>
               <p className={`mt-2 text-3xl font-semibold ${gateOpen ? 'text-kriyo-success' : 'text-kriyo-amber'}`}>{score}/5</p>
             </div>
           </div>
         </Card>
 
         <div className="grid gap-3">
-          {criteria.map((criterion) => (
+          {criteriaKeys.map((key) => (
             <Switch
-              key={criterion.key}
-              checked={values[criterion.key]}
+              key={key}
+              checked={values[key]}
               disabled={isLocked || isLoading}
               onCheckedChange={(checked) => {
-                setValues((current) => ({ ...current, [criterion.key]: checked }));
+                setValues((current) => ({ ...current, [key]: checked }));
                 if (status === 'saved') {
                   setStatus('ready');
-                  setMessage('Les critères ont changé. Revalide la session.');
+                  setMessage(dict.sas.changedMsg);
                 }
               }}
-              label={criterion.label}
-              description={`${criterion.group} · ${criterion.description}`}
+              label={dict.sas.criteria[key].label}
+              description={`${criteriaGroup[key] === 'psy' ? dict.sas.groupPsy : dict.sas.groupTech} · ${dict.sas.criteria[key].description}`}
             />
           ))}
         </div>
 
         <Button className="w-full" disabled={isLoading} onClick={handleValidate} type="button">
-          {isLocked ? 'Sas verrouillé' : 'Valider ma Session'}
+          {isLocked ? dict.sas.lockedButton : dict.sas.validateButton}
         </Button>
 
-        <p className="text-xs leading-5 text-kriyo-dim">
-          Le sas est persistant en IndexedDB. Si un critère est refusé, l’accès reste bloqué jusqu’au prochain minuit local.
-        </p>
+        <p className="text-xs leading-5 text-kriyo-dim">{dict.sas.footerNote}</p>
       </div>
     </AppShell>
   );
