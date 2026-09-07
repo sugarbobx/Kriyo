@@ -5,13 +5,17 @@ import Dashboard from './Dashboard';
 import SecurityGate from './SecurityGate';
 import Performance from './Performance';
 import Accounts from './Accounts';
+import Tracking from './Tracking';
+import Education from './Education';
 import AppShell from './AppShell';
+import { useLanguage } from './i18n/context';
 
 const ENGAGEMENT_KEY = 'kriyo_engagement_accepted';
 
-type PostAuthView = 'dashboard' | 'gate' | 'performance' | 'accounts';
+type PostAuthView = 'dashboard' | 'gate' | 'performance' | 'accounts' | 'tracking' | 'education';
 
 export default function App() {
+  const { dict } = useLanguage();
   const [health, setHealth] = useState<'checking' | 'ok' | 'down'>('checking');
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -72,7 +76,7 @@ export default function App() {
   if (checkingSession) {
     return (
       <AppShell title="Kriyo">
-        <p className="kriyo-dim">Vérification de la session...</p>
+        <p className="kriyo-dim">{dict.auth.checkingSession}</p>
       </AppShell>
     );
   }
@@ -89,6 +93,14 @@ export default function App() {
     return <Accounts onBack={() => setView('performance')} />;
   }
 
+  if (user && engaged && view === 'tracking') {
+    return <Tracking onBack={() => setView('dashboard')} />;
+  }
+
+  if (user && engaged && view === 'education') {
+    return <Education onBack={() => setView('dashboard')} />;
+  }
+
   if (user && engaged) {
     return (
       <Dashboard
@@ -96,6 +108,8 @@ export default function App() {
         onLogout={handleLogout}
         onOpenGate={() => setView('gate')}
         onOpenPerformance={() => setView('performance')}
+        onOpenTracking={() => setView('tracking')}
+        onOpenEducation={() => setView('education')}
       />
     );
   }
@@ -105,8 +119,10 @@ export default function App() {
   }
 
   return (
-    <AppShell title={mode === 'login' ? 'Connexion' : 'Créer un compte'} subtitle="Accède à ton espace Kriyo.">
-      <span className={`kriyo-badge ${health === 'ok' ? 'kriyo-badge--success' : ''}`}>API {health}</span>
+    <AppShell title={mode === 'login' ? dict.auth.loginTitle : dict.auth.signupTitle} subtitle={dict.auth.subtitle}>
+      <span className={`kriyo-badge ${health === 'ok' ? 'kriyo-badge--success' : ''}`}>
+        {dict.auth.apiHealth} {health}
+      </span>
 
       <div className="kriyo-btn-row">
         <button
@@ -115,7 +131,7 @@ export default function App() {
           data-active={mode === 'login'}
           onClick={() => switchMode('login')}
         >
-          Se connecter
+          {dict.auth.login}
         </button>
         <button
           type="button"
@@ -123,7 +139,7 @@ export default function App() {
           data-active={mode === 'signup'}
           onClick={() => switchMode('signup')}
         >
-          Créer un compte
+          {dict.auth.createAccount}
         </button>
       </div>
 
@@ -131,7 +147,7 @@ export default function App() {
         <input
           className="kriyo-input"
           type="email"
-          placeholder="Email"
+          placeholder={dict.auth.email}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
@@ -139,14 +155,14 @@ export default function App() {
         <input
           className="kriyo-input"
           type="password"
-          placeholder="Mot de passe"
+          placeholder={dict.auth.password}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           required
         />
         <button className="kriyo-btn kriyo-btn--primary" type="submit" disabled={submitting}>
-          {submitting ? 'Patiente...' : mode === 'login' ? 'Se connecter' : 'Créer le compte'}
+          {submitting ? dict.auth.pleaseWait : mode === 'login' ? dict.auth.login : dict.auth.signup}
         </button>
         {error ? <p className="kriyo-error">{error}</p> : null}
       </form>

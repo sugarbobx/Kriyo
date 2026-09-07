@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { api } from './api/client';
 import AppShell from './AppShell';
+import { useLanguage } from './i18n/context';
 
 export default function Engagement({ onAccepted, onLogout }: { onAccepted: () => void; onLogout: () => void }) {
+  const { dict } = useLanguage();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -13,25 +15,21 @@ export default function Engagement({ onAccepted, onLogout }: { onAccepted: () =>
       await api.acceptEngagement();
       onAccepted();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible d'enregistrer l'engagement.");
+      setError(err instanceof Error ? err.message : dict.engagement.error);
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <AppShell title="Bienvenue sur Kriyo">
-      <p className="kriyo-dim">
-        Kriyo est un outil éducatif conçu pour t'aider à mieux comprendre et gérer ton trading. Pour que
-        l'accompagnement soit vraiment utile, tes réponses doivent refléter fidèlement ta réalité — pas ce que tu
-        penses « devoir » répondre.
-      </p>
-      <p className="kriyo-dim">En continuant, tu t'engages à répondre avec honnêteté et sincérité tout au long de ton parcours.</p>
+    <AppShell title={dict.engagement.title}>
+      <p className="kriyo-dim">{dict.engagement.paragraph1}</p>
+      <p className="kriyo-dim">{dict.engagement.paragraph2}</p>
       <button className="kriyo-btn kriyo-btn--primary" onClick={handleAccept} disabled={submitting}>
-        {submitting ? 'Enregistrement...' : "J'accepte et je continue"}
+        {submitting ? dict.engagement.saving : dict.engagement.accept}
       </button>
       <button className="kriyo-btn kriyo-btn--secondary" onClick={onLogout} disabled={submitting}>
-        Se déconnecter
+        {dict.common.logout}
       </button>
       {error ? <p className="kriyo-error">{error}</p> : null}
     </AppShell>

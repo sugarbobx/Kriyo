@@ -2,27 +2,10 @@ import { useEffect, useState } from 'react';
 import { api, type CriterionState, type GateQuestion, type GateState, type MessageTier } from './api/client';
 import { formatCountdown } from './time';
 import AppShell from './AppShell';
-
-const MESSAGE_COPY: Record<MessageTier, { title: string; body: string }> = {
-  locked: {
-    title: 'Not cleared for this session.',
-    body: "Your current state isn't where it needs to be to trade well right now — and that's the whole point of this gate. It's not here to punish you, it's here to catch you before the market does. Step away for 30 minutes. Breathe, reset, come back when your head is clearer. The trade will still be there."
-  },
-  pass_tight: {
-    title: 'Cleared, but margins are tight.',
-    body: "You're through, but a few areas were shakier than they should be. Trade smaller than usual today, and don't force anything. Watch the criteria that came in weak — they're telling you something."
-  },
-  pass_good: {
-    title: "You're in the right mindset.",
-    body: 'Keep your head up, stay focused, and make sure you are aligning with the market and your structure before opening trades.'
-  },
-  pass_excellent: {
-    title: 'Fully aligned.',
-    body: 'Mind clear, discipline high, no red flags anywhere. This is the state you want to trade from every time — not just today. Go execute your plan.'
-  }
-};
+import { useLanguage } from './i18n/context';
 
 type Screen = 'loading' | 'locked' | 'list' | 'quiz' | 'result';
+type CriterionKey = 'tension' | 'screen_time' | 'phone' | 'macro' | 'alignment';
 
 interface ResultData {
   tier: MessageTier;
@@ -30,11 +13,12 @@ interface ResultData {
 }
 
 export default function SecurityGate({ onDone }: { onDone: () => void }) {
+  const { dict } = useLanguage();
   const [screen, setScreen] = useState<Screen>('loading');
   const [criteria, setCriteria] = useState<CriterionState[]>([]);
   const [lockedUntil, setLockedUntil] = useState<string | null>(null);
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
-  const [activeCriterion, setActiveCriterion] = useState<string | null>(null);
+  const [activeCriterion, setActiveCriterion] = useState<CriterionKey | null>(null);
   const [questions, setQuestions] = useState<GateQuestion[]>([]);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [result, setResult] = useState<ResultData | null>(null);
@@ -53,7 +37,7 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
   }
 
   useEffect(() => {
-    api.gate.current().then(applyState).catch(() => setError('Impossible de charger le Security Gate.'));
+    api.gate.current().then(applyState).catch(() => setError('Error loading the Security Gate.'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -78,7 +62,7 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen, lockedUntil]);
 
-  async function openCriterion(key: string) {
+  async function openCriterion(key: CriterionKey) {
     setError('');
     try {
       const qs = await api.gate.questions(key);
@@ -87,7 +71,7 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
       setActiveCriterion(key);
       setScreen('quiz');
     } catch {
-      setError('Impossible de charger les questions.');
+      setError('Error loading the questions.');
     }
   }
 
@@ -111,62 +95,64 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
       const state = await api.gate.current();
       applyState(state);
     } catch {
-      setError("Impossible d'enregistrer la réponse.");
+      setError('Error saving the answer.');
     }
   }
 
   if (screen === 'loading') {
     return (
-      <AppShell title="Security Gate">
-        <p className="kriyo-dim">Chargement...</p>
+      <AppShell title={dict.gate.title}>
+        <p className="kriyo-dim">{dict.common.loading}</p>
       </AppShell>
     );
   }
 
   if (screen === 'locked') {
+    const copy = dict.gate.messages.locked;
     return (
-      <AppShell title="Security Gate" subtitle="Session bloquée">
-        <span className="kriyo-badge">Verrouillé</span>
+      <AppShell title={dict.gate.title} subtitle={dict.gate.lockedTitle}>
+        <span className="kriyo-badge">{dict.gate.lockedBadge}</span>
         {remainingMs != null ? <p className="kriyo-countdown">{formatCountdown(remainingMs)}</p> : null}
-        <p className="kriyo-dim">{MESSAGE_COPY.locked.body}</p>
+        <p className="kriyo-dim">{copy.body}</p>
         <button className="kriyo-btn kriyo-btn--secondary" onClick={onDone}>
-          Retour au dashboard
+          {dict.common.back}
         </button>
       </AppShell>
     );
   }
 
   if (screen === 'result' && result) {
-    const copy = MESSAGE_COPY[result.tier];
+    const copy = dict.gate.messages[result.tier];
     return (
-      <AppShell title="Security Gate" subtitle={`Score global: ${Math.round(result.overallScore * 100)}%`}>
+      <AppShell title={dict.gate.title} subtitle={`${Math.round(result.overallScore * 100)}%`}>
         <div className="kriyo-result-card" data-tier={result.tier}>
           <p className="kriyo-result-title">{copy.title}</p>
           <p className="kriyo-result-body">{copy.body}</p>
         </div>
         <button className="kriyo-btn kriyo-btn--primary" onClick={onDone}>
-          Continuer
+          {dict.gate.continueLabel}
         </button>
       </AppShell>
     );
   }
 
-  if (screen === 'quiz') {
+  if (screen === 'quiz' && activeCriterion) {
     const question = questions[questionIndex];
+    const questionText = question ? dict.gate.questions[activeCriterion][question.order - 1] : '';
     return (
-      <AppShell title={criteria.find((c) => c.key === activeCriterion)?.label ?? ''} subtitle={`Question ${questionIndex + 1} / 6`}>
+      <AppShell title={dict.gate.categories[activeCriterion]} subtitle={`${questionIndex + 1} / 6`}>
         <div className="kriyo-progress-track">
           <div className="kriyo-progress-fill" style={{ width: `${((questionIndex + 1) / 6) * 100}%` }} />
         </div>
         {question ? (
           <>
-            <p className="kriyo-quiz-question">{question.text}</p>
+            <p className="kriyo-quiz-question">{questionText}</p>
             <div className="kriyo-btn-row">
               <button className="kriyo-btn kriyo-btn--secondary" onClick={() => answer(false)}>
-                No
+                {dict.common.no}
               </button>
               <button className="kriyo-btn kriyo-btn--primary" onClick={() => answer(true)}>
-                Yes
+                {dict.common.yes}
               </button>
             </div>
           </>
@@ -177,9 +163,10 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <AppShell title="Security Gate" subtitle="Complète les 5 critères pour accéder au dashboard.">
+    <AppShell title={dict.gate.title} subtitle={dict.gate.listSubtitle}>
       <div className="kriyo-stack">
         {criteria.map((criterion) => {
+          const key = criterion.key as CriterionKey;
           const state = !criterion.attempted ? 'pending' : criterion.validated ? 'validated' : 'invalidated';
           return (
             <button
@@ -187,21 +174,21 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
               type="button"
               className="kriyo-criterion-row"
               data-state={state}
-              onClick={() => openCriterion(criterion.key)}
+              onClick={() => openCriterion(key)}
             >
               <div>
                 <p className="kriyo-palier-title" style={{ margin: 0 }}>
-                  {criterion.label}
+                  {dict.gate.categories[key]}
                 </p>
                 <p className="kriyo-dim" style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', textTransform: 'uppercase' }}>
-                  {criterion.category === 'psych' ? 'Psych' : 'Tech'}
+                  {criterion.category === 'psych' ? dict.gate.psych : dict.gate.tech}
                 </p>
               </div>
               <span
                 className={`kriyo-badge ${state === 'validated' ? 'kriyo-badge--success' : ''}`}
                 style={state === 'invalidated' ? { borderColor: 'rgba(229,72,77,0.3)', background: 'rgba(229,72,77,0.1)', color: 'var(--kriyo-danger)' } : undefined}
               >
-                {state === 'pending' ? 'À faire' : `${Math.round((criterion.score ?? 0) * 100)}%`}
+                {state === 'pending' ? dict.gate.todo : `${Math.round((criterion.score ?? 0) * 100)}%`}
               </span>
             </button>
           );

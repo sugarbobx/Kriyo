@@ -133,6 +133,14 @@ export interface Trade {
   closed_at: string | null;
 }
 
+export type TradeReasonKey = 'take_profit_forced' | 'daily_drawdown' | 'max_drawdown' | 'logged';
+
+export interface TradeOutcome {
+  status: 'CLOTURE' | 'VERROUILLE';
+  reason_key: TradeReasonKey;
+  amount: number;
+}
+
 export const api = {
   health: () => request<{ status: string }>('/health/'),
   csrf: () => request<void>('/auth/csrf/'),
@@ -171,6 +179,13 @@ export const api = {
       request<Trade[]>('/performance/trades/', {
         method: 'POST',
         body: JSON.stringify({ account_ids: accountIds, score_vr: scoreVr, score_ep: scoreEp, score_vp: scoreVp })
+      })
+  },
+  tracking: {
+    closeTrade: (tradeId: number, pnl: number) =>
+      request<{ trade: Trade; outcome: TradeOutcome }>(`/tracking/trades/${tradeId}/close/`, {
+        method: 'POST',
+        body: JSON.stringify({ pnl })
       })
   }
 };

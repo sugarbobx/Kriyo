@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { LanguageSwitch } from './i18n/LanguageSwitch';
 
 export default function AppShell({
   title,
@@ -11,10 +12,13 @@ export default function AppShell({
 }) {
   return (
     <div className="kriyo-shell">
-      <header>
-        <p className="kriyo-brand">Kriyo</p>
-        <h1 className="kriyo-title">{title}</h1>
-        {subtitle ? <p className="kriyo-subtitle">{subtitle}</p> : null}
+      <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+        <div>
+          <p className="kriyo-brand">Kriyo</p>
+          <h1 className="kriyo-title">{title}</h1>
+          {subtitle ? <p className="kriyo-subtitle">{subtitle}</p> : null}
+        </div>
+        <LanguageSwitch />
       </header>
       <div className="kriyo-card kriyo-stack">{children}</div>
     </div>

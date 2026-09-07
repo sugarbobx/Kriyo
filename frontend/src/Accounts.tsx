@@ -1,18 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, type PayoutType, type TradingAccount } from './api/client';
 import AppShell from './AppShell';
+import { useLanguage } from './i18n/context';
 
-const PAYOUT_OPTIONS: Array<{ value: PayoutType; label: string; note: string }> = [
-  { value: 'ON_DEMAND', label: 'On-Demand', note: 'Extraction immédiate' },
-  { value: 'DEUX_SEMAINES', label: '2 Semaines', note: 'Challenge avec DD journalier' },
-  { value: 'UN_MOIS', label: '1 Mois', note: 'Capitalisation et DD global' }
-];
+const PAYOUT_TYPES: PayoutType[] = ['ON_DEMAND', 'DEUX_SEMAINES', 'UN_MOIS'];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(value);
 }
 
 export default function Accounts({ onBack }: { onBack: () => void }) {
+  const { dict } = useLanguage();
   const [accounts, setAccounts] = useState<TradingAccount[]>([]);
   const [name, setName] = useState('');
   const [capital, setCapital] = useState('');
@@ -34,7 +32,7 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
     event.preventDefault();
     const capitalValue = Number(capital);
     if (!name.trim() || !Number.isFinite(capitalValue) || capitalValue <= 0) {
-      setMessage('Renseigne un nom de compte et un capital valide.');
+      setMessage(dict.accounts.invalidForm);
       return;
     }
 
@@ -48,16 +46,16 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
       setStatus('ready');
     } catch (err) {
       setStatus('error');
-      setMessage(err instanceof Error ? err.message : "Impossible d'enregistrer le compte.");
+      setMessage(err instanceof Error ? err.message : dict.accounts.errorSave);
     }
   }
 
   return (
-    <AppShell title="Comptes & Onboarding" subtitle="Configuration des comptes prop firm et des profils de risque.">
+    <AppShell title={dict.accounts.title} subtitle={dict.accounts.subtitle}>
       <form onSubmit={handleSubmit} className="kriyo-stack">
         <input
           className="kriyo-input"
-          placeholder="Nom du compte (ex: FTMO 5K)"
+          placeholder={dict.accounts.namePlaceholder}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -66,26 +64,26 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
           type="number"
           min="0"
           step="100"
-          placeholder="Capital initial"
+          placeholder={dict.accounts.capitalPlaceholder}
           value={capital}
           onChange={(e) => setCapital(e.target.value)}
         />
         <select className="kriyo-input" value={payoutType} onChange={(e) => setPayoutType(e.target.value as PayoutType)}>
-          {PAYOUT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label} — {option.note}
+          {PAYOUT_TYPES.map((value) => (
+            <option key={value} value={value}>
+              {dict.accounts.payoutOptions[value]}
             </option>
           ))}
         </select>
         <button className="kriyo-btn kriyo-btn--primary" type="submit" disabled={status === 'saving'}>
-          {status === 'saving' ? 'Sauvegarde...' : 'Ajouter un compte'}
+          {status === 'saving' ? dict.accounts.savingButton : dict.accounts.addButton}
         </button>
         {message ? <p className="kriyo-error">{message}</p> : null}
       </form>
 
       <div className="kriyo-stack">
         {accounts.length === 0 ? (
-          <p className="kriyo-dim">Aucun compte local pour le moment.</p>
+          <p className="kriyo-dim">{dict.accounts.noAccountsYet}</p>
         ) : (
           accounts.map((account) => (
             <div key={account.id} className="kriyo-palier">
@@ -99,7 +97,7 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
       </div>
 
       <button className="kriyo-btn kriyo-btn--secondary" onClick={onBack}>
-        Retour au dashboard
+        {dict.common.back}
       </button>
     </AppShell>
   );
