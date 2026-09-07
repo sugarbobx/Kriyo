@@ -21,6 +21,7 @@ export default function App() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [engaged, setEngaged] = useState(() => sessionStorage.getItem(ENGAGEMENT_KEY) === '1');
   const [view, setView] = useState<PostAuthView>('dashboard');
+  const [routeReady, setRouteReady] = useState(false);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,6 +35,15 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!user || !engaged || routeReady) return;
+    api.gate
+      .current()
+      .then((state) => setView(state.status === 'passed_today' ? 'dashboard' : 'gate'))
+      .catch(() => setView('dashboard'))
+      .finally(() => setRouteReady(true));
+  }, [user, engaged, routeReady]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
@@ -42,7 +52,7 @@ export default function App() {
       const loggedInUser = mode === 'login' ? await api.login(email, password) : await api.signup(email, password);
       sessionStorage.removeItem(ENGAGEMENT_KEY);
       setEngaged(false);
-      setView('dashboard');
+      setRouteReady(false);
       setUser(loggedInUser);
     } catch (err) {
       if (err instanceof ApiValidationError) {
@@ -59,6 +69,7 @@ export default function App() {
     await api.logout();
     sessionStorage.removeItem(ENGAGEMENT_KEY);
     setEngaged(false);
+    setRouteReady(false);
     setView('dashboard');
     setUser(null);
   }
@@ -77,6 +88,14 @@ export default function App() {
     return (
       <AppShell title="Kriyo">
         <p className="kriyo-dim">{dict.auth.checkingSession}</p>
+      </AppShell>
+    );
+  }
+
+  if (user && engaged && !routeReady) {
+    return (
+      <AppShell title="Kriyo">
+        <p className="kriyo-dim">{dict.common.loading}</p>
       </AppShell>
     );
   }

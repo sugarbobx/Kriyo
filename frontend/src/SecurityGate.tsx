@@ -23,6 +23,7 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
   const [questionIndex, setQuestionIndex] = useState(0);
   const [result, setResult] = useState<ResultData | null>(null);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   function applyState(state: GateState) {
     setCriteria(state.criteria);
@@ -76,13 +77,16 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
   }
 
   async function answer(value: boolean) {
-    if (!activeCriterion) return;
+    if (!activeCriterion || submitting) return;
     const question = questions[questionIndex];
+    if (!question) return;
+
+    setSubmitting(true);
     try {
       const response = await api.gate.answer(activeCriterion, question.id, value);
 
       if (!response.criterion_complete) {
-        setQuestionIndex((i) => i + 1);
+        setQuestionIndex((i) => Math.min(i + 1, questions.length - 1));
         return;
       }
 
@@ -96,6 +100,8 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
       applyState(state);
     } catch {
       setError('Error saving the answer.');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -148,10 +154,10 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
           <>
             <p className="kriyo-quiz-question">{questionText}</p>
             <div className="kriyo-btn-row">
-              <button className="kriyo-btn kriyo-btn--secondary" onClick={() => answer(false)}>
+              <button className="kriyo-btn kriyo-btn--secondary" onClick={() => answer(false)} disabled={submitting}>
                 {dict.common.no}
               </button>
-              <button className="kriyo-btn kriyo-btn--primary" onClick={() => answer(true)}>
+              <button className="kriyo-btn kriyo-btn--primary" onClick={() => answer(true)} disabled={submitting}>
                 {dict.common.yes}
               </button>
             </div>
