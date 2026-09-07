@@ -52,13 +52,28 @@ export class ApiValidationError extends Error {
   }
 }
 
+function detectTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
+}
+
 export const api = {
   health: () => request<{ status: string }>('/health/'),
   csrf: () => request<void>('/auth/csrf/'),
   signup: (email: string, password: string) =>
-    request<User>('/auth/signup/', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    request<User>('/auth/signup/', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, timezone: detectTimezone() })
+    }),
   login: (email: string, password: string) =>
-    request<User>('/auth/login/', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    request<User>('/auth/login/', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, timezone: detectTimezone() })
+    }),
   logout: () => request<void>('/auth/logout/', { method: 'POST' }),
-  me: () => request<User>('/auth/me/')
+  me: () => request<User>('/auth/me/'),
+  acceptEngagement: () => request<{ accepted_at: string }>('/engagement/accept/', { method: 'POST' })
 };

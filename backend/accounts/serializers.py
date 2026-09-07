@@ -14,11 +14,13 @@ class UserSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)
+    timezone = serializers.CharField(required=False, allow_blank=True, max_length=64)
 
 
 class SignupSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)
+    timezone = serializers.CharField(required=False, allow_blank=True, max_length=64)
 
     def validate_email(self, value):
         email = value.strip().lower()
@@ -31,4 +33,8 @@ class SignupSerializer(serializers.Serializer):
         return value
 
     def create(self, validated_data):
-        return User.objects.create_user(email=validated_data['email'], password=validated_data['password'])
+        return User.objects.create_user(
+            email=validated_data['email'],
+            password=validated_data['password'],
+            timezone=validated_data.get('timezone') or 'UTC',
+        )

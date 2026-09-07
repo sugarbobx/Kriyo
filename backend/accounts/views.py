@@ -39,6 +39,11 @@ def login_view(request):
     if user is None:
         return Response({'detail': 'Invalid email or password.'}, status=status.HTTP_401_UNAUTHORIZED)
 
+    timezone = serializer.validated_data.get('timezone')
+    if timezone and timezone != user.timezone:
+        user.timezone = timezone
+        user.save(update_fields=['timezone'])
+
     login(request, user)
     return Response(UserSerializer(user).data)
 

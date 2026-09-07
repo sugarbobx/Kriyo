@@ -1,10 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, ApiValidationError, type User } from './api/client';
+import Engagement from './Engagement';
+import Dashboard from './Dashboard';
+
+const ENGAGEMENT_KEY = 'kriyo_engagement_accepted';
 
 export default function App() {
   const [health, setHealth] = useState<'checking' | 'ok' | 'down'>('checking');
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [engaged, setEngaged] = useState(() => sessionStorage.getItem(ENGAGEMENT_KEY) === '1');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +29,8 @@ export default function App() {
     setSubmitting(true);
     try {
       const loggedInUser = mode === 'login' ? await api.login(email, password) : await api.signup(email, password);
+      sessionStorage.removeItem(ENGAGEMENT_KEY);
+      setEngaged(false);
       setUser(loggedInUser);
     } catch (err) {
       if (err instanceof ApiValidationError) {
@@ -38,7 +45,14 @@ export default function App() {
 
   async function handleLogout() {
     await api.logout();
+    sessionStorage.removeItem(ENGAGEMENT_KEY);
+    setEngaged(false);
     setUser(null);
+  }
+
+  function handleEngagementAccepted() {
+    sessionStorage.setItem(ENGAGEMENT_KEY, '1');
+    setEngaged(true);
   }
 
   function switchMode(next: 'login' | 'signup') {
@@ -55,14 +69,7 @@ export default function App() {
 
       {checkingSession ? (
         <p>Checking session...</p>
-      ) : user ? (
-        <div>
-          <p>
-            Logged in as <strong>{user.email}</strong>
-          </p>
-          <button onClick={handleLogout}>Log out</button>
-        </div>
-      ) : (
+      ) : !user ? (
         <div>
           <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
             <button type="button" onClick={() => switchMode('login')} disabled={mode === 'login'}>
@@ -88,6 +95,10 @@ export default function App() {
             {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
           </form>
         </div>
+      ) : !engaged ? (
+        <Engagement onAccepted={handleEngagementAccepted} />
+      ) : (
+        <Dashboard user={user} onLogout={handleLogout} />
       )}
     </main>
   );
