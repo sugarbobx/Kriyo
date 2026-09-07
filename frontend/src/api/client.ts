@@ -60,6 +60,44 @@ function detectTimezone() {
   }
 }
 
+export type GateStatus = 'in_progress' | 'passed_today' | 'locked';
+export type MessageTier = 'locked' | 'pass_tight' | 'pass_good' | 'pass_excellent';
+
+export interface CriterionState {
+  key: string;
+  label: string;
+  category: 'psych' | 'tech';
+  attempted: boolean;
+  validated: boolean | null;
+  score: number | null;
+}
+
+export interface GateState {
+  status: GateStatus;
+  locked_until: string | null;
+  overall_score: number | null;
+  message_tier: MessageTier | null;
+  criteria: CriterionState[];
+}
+
+export interface GateQuestion {
+  id: number;
+  order: number;
+  text: string;
+}
+
+export interface AnswerResult {
+  criterion_complete: boolean;
+  criterion?: { key: string; label: string; score: number; validated: boolean };
+  gate_complete: boolean;
+  gate_result?: {
+    status: 'passed' | 'locked';
+    overall_score: number;
+    message_tier: MessageTier;
+    locked_until?: string;
+  } | null;
+}
+
 export const api = {
   health: () => request<{ status: string }>('/health/'),
   csrf: () => request<void>('/auth/csrf/'),
@@ -75,5 +113,14 @@ export const api = {
     }),
   logout: () => request<void>('/auth/logout/', { method: 'POST' }),
   me: () => request<User>('/auth/me/'),
-  acceptEngagement: () => request<{ accepted_at: string }>('/engagement/accept/', { method: 'POST' })
+  acceptEngagement: () => request<{ accepted_at: string }>('/engagement/accept/', { method: 'POST' }),
+  gate: {
+    current: () => request<GateState>('/gate/current/'),
+    questions: (criterionKey: string) => request<GateQuestion[]>(`/gate/criteria/${criterionKey}/questions/`),
+    answer: (criterionKey: string, questionId: number, answer: boolean) =>
+      request<AnswerResult>(`/gate/criteria/${criterionKey}/answers/`, {
+        method: 'POST',
+        body: JSON.stringify({ question_id: questionId, answer })
+      })
+  }
 };

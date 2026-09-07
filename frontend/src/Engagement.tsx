@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { api } from './api/client';
+import AppShell from './AppShell';
 
-export default function Engagement({ onAccepted }: { onAccepted: () => void }) {
+export default function Engagement({ onAccepted, onLogout }: { onAccepted: () => void; onLogout: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -19,17 +20,20 @@ export default function Engagement({ onAccepted }: { onAccepted: () => void }) {
   }
 
   return (
-    <div>
-      <h2>Engagement</h2>
-      <p>
-        Avant d'accéder à ton espace Kriyo, tu confirmes vouloir t'engager pleinement dans le processus : je
-        m'engage à répondre honnêtement à chaque critère et question, sans chercher à contourner le système pour
-        forcer un accès.
+    <AppShell title="Bienvenue sur Kriyo">
+      <p className="kriyo-dim">
+        Kriyo est un outil éducatif conçu pour t'aider à mieux comprendre et gérer ton trading. Pour que
+        l'accompagnement soit vraiment utile, tes réponses doivent refléter fidèlement ta réalité — pas ce que tu
+        penses « devoir » répondre.
       </p>
-      <button onClick={handleAccept} disabled={submitting}>
+      <p className="kriyo-dim">En continuant, tu t'engages à répondre avec honnêteté et sincérité tout au long de ton parcours.</p>
+      <button className="kriyo-btn kriyo-btn--primary" onClick={handleAccept} disabled={submitting}>
         {submitting ? 'Enregistrement...' : "J'accepte et je continue"}
       </button>
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-    </div>
+      <button className="kriyo-btn kriyo-btn--secondary" onClick={onLogout} disabled={submitting}>
+        Se déconnecter
+      </button>
+      {error ? <p className="kriyo-error">{error}</p> : null}
+    </AppShell>
   );
 }

@@ -2,14 +2,19 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { api, ApiValidationError, type User } from './api/client';
 import Engagement from './Engagement';
 import Dashboard from './Dashboard';
+import SecurityGate from './SecurityGate';
+import AppShell from './AppShell';
 
 const ENGAGEMENT_KEY = 'kriyo_engagement_accepted';
+
+type PostAuthView = 'dashboard' | 'gate';
 
 export default function App() {
   const [health, setHealth] = useState<'checking' | 'ok' | 'down'>('checking');
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [engaged, setEngaged] = useState(() => sessionStorage.getItem(ENGAGEMENT_KEY) === '1');
+  const [view, setView] = useState<PostAuthView>('dashboard');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,6 +36,7 @@ export default function App() {
       const loggedInUser = mode === 'login' ? await api.login(email, password) : await api.signup(email, password);
       sessionStorage.removeItem(ENGAGEMENT_KEY);
       setEngaged(false);
+      setView('dashboard');
       setUser(loggedInUser);
     } catch (err) {
       if (err instanceof ApiValidationError) {
@@ -47,6 +53,7 @@ export default function App() {
     await api.logout();
     sessionStorage.removeItem(ENGAGEMENT_KEY);
     setEngaged(false);
+    setView('dashboard');
     setUser(null);
   }
 
@@ -60,46 +67,72 @@ export default function App() {
     setError('');
   }
 
-  return (
-    <main style={{ maxWidth: 420, margin: '10vh auto', fontFamily: 'system-ui, sans-serif', padding: '0 1rem' }}>
-      <h1>Kriyo</h1>
-      <p>
-        API health: <strong>{health}</strong>
-      </p>
+  if (checkingSession) {
+    return (
+      <AppShell title="Kriyo">
+        <p className="kriyo-dim">Vérification de la session...</p>
+      </AppShell>
+    );
+  }
 
-      {checkingSession ? (
-        <p>Checking session...</p>
-      ) : !user ? (
-        <div>
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-            <button type="button" onClick={() => switchMode('login')} disabled={mode === 'login'}>
-              Log in
-            </button>
-            <button type="button" onClick={() => switchMode('signup')} disabled={mode === 'signup'}>
-              Create account
-            </button>
-          </div>
-          <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.5rem' }}>
-            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              required
-            />
-            <button type="submit" disabled={submitting}>
-              {submitting ? 'Please wait...' : mode === 'login' ? 'Log in' : 'Create account'}
-            </button>
-            {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-          </form>
-        </div>
-      ) : !engaged ? (
-        <Engagement onAccepted={handleEngagementAccepted} />
-      ) : (
-        <Dashboard user={user} onLogout={handleLogout} />
-      )}
-    </main>
+  if (user && engaged && view === 'gate') {
+    return <SecurityGate onDone={() => setView('dashboard')} />;
+  }
+
+  if (user && engaged) {
+    return <Dashboard user={user} onLogout={handleLogout} onOpenGate={() => setView('gate')} />;
+  }
+
+  if (user && !engaged) {
+    return <Engagement onAccepted={handleEngagementAccepted} onLogout={handleLogout} />;
+  }
+
+  return (
+    <AppShell title={mode === 'login' ? 'Connexion' : 'Créer un compte'} subtitle="Accède à ton espace Kriyo.">
+      <span className={`kriyo-badge ${health === 'ok' ? 'kriyo-badge--success' : ''}`}>API {health}</span>
+
+      <div className="kriyo-btn-row">
+        <button
+          type="button"
+          className="kriyo-btn kriyo-btn--secondary"
+          data-active={mode === 'login'}
+          onClick={() => switchMode('login')}
+        >
+          Se connecter
+        </button>
+        <button
+          type="button"
+          className="kriyo-btn kriyo-btn--secondary"
+          data-active={mode === 'signup'}
+          onClick={() => switchMode('signup')}
+        >
+          Créer un compte
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="kriyo-stack">
+        <input
+          className="kriyo-input"
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          className="kriyo-input"
+          type="password"
+          placeholder="Mot de passe"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+          required
+        />
+        <button className="kriyo-btn kriyo-btn--primary" type="submit" disabled={submitting}>
+          {submitting ? 'Patiente...' : mode === 'login' ? 'Se connecter' : 'Créer le compte'}
+        </button>
+        {error ? <p className="kriyo-error">{error}</p> : null}
+      </form>
+    </AppShell>
   );
 }
