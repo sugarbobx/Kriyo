@@ -98,6 +98,41 @@ export interface AnswerResult {
   } | null;
 }
 
+export type PayoutType = 'ON_DEMAND' | 'DEUX_SEMAINES' | 'UN_MOIS';
+export type RiskProfileType = 'AGRESSIF' | 'MODERE' | 'CONSERVATEUR';
+
+export interface RiskProfile {
+  type: RiskProfileType;
+  label: string;
+  daily_dd: number | null;
+  max_dd: number | null;
+  plafond_tp: number | null;
+  note: string;
+}
+
+export interface TradingAccount {
+  id: number;
+  name: string;
+  capital: number;
+  payout_type: PayoutType;
+  risk_profile: RiskProfile;
+  created_at: string;
+}
+
+export interface Trade {
+  id: number;
+  account: number;
+  score_vr: number;
+  score_ep: number;
+  score_vp: number;
+  score_total: number;
+  risk_reward: number | null;
+  pnl: number | null;
+  status: 'EN_COURS' | 'CLOTURE' | 'VERROUILLE';
+  opened_at: string;
+  closed_at: string | null;
+}
+
 export const api = {
   health: () => request<{ status: string }>('/health/'),
   csrf: () => request<void>('/auth/csrf/'),
@@ -121,6 +156,21 @@ export const api = {
       request<AnswerResult>(`/gate/criteria/${criterionKey}/answers/`, {
         method: 'POST',
         body: JSON.stringify({ question_id: questionId, answer })
+      })
+  },
+  performance: {
+    riskProfiles: () => request<RiskProfile[]>('/performance/risk-profiles/'),
+    accounts: () => request<TradingAccount[]>('/performance/accounts/'),
+    createAccount: (name: string, capital: number, payoutType: PayoutType) =>
+      request<TradingAccount>('/performance/accounts/', {
+        method: 'POST',
+        body: JSON.stringify({ name, capital, payout_type: payoutType })
+      }),
+    trades: () => request<Trade[]>('/performance/trades/'),
+    executeTrade: (accountIds: number[], scoreVr: number, scoreEp: number, scoreVp: number) =>
+      request<Trade[]>('/performance/trades/', {
+        method: 'POST',
+        body: JSON.stringify({ account_ids: accountIds, score_vr: scoreVr, score_ep: scoreEp, score_vp: scoreVp })
       })
   }
 };

@@ -3,11 +3,13 @@ import { api, ApiValidationError, type User } from './api/client';
 import Engagement from './Engagement';
 import Dashboard from './Dashboard';
 import SecurityGate from './SecurityGate';
+import Performance from './Performance';
+import Accounts from './Accounts';
 import AppShell from './AppShell';
 
 const ENGAGEMENT_KEY = 'kriyo_engagement_accepted';
 
-type PostAuthView = 'dashboard' | 'gate';
+type PostAuthView = 'dashboard' | 'gate' | 'performance' | 'accounts';
 
 export default function App() {
   const [health, setHealth] = useState<'checking' | 'ok' | 'down'>('checking');
@@ -79,8 +81,23 @@ export default function App() {
     return <SecurityGate onDone={() => setView('dashboard')} />;
   }
 
+  if (user && engaged && view === 'performance') {
+    return <Performance onOpenAccounts={() => setView('accounts')} onBack={() => setView('dashboard')} />;
+  }
+
+  if (user && engaged && view === 'accounts') {
+    return <Accounts onBack={() => setView('performance')} />;
+  }
+
   if (user && engaged) {
-    return <Dashboard user={user} onLogout={handleLogout} onOpenGate={() => setView('gate')} />;
+    return (
+      <Dashboard
+        user={user}
+        onLogout={handleLogout}
+        onOpenGate={() => setView('gate')}
+        onOpenPerformance={() => setView('performance')}
+      />
+    );
   }
 
   if (user && !engaged) {

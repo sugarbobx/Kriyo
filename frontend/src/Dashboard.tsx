@@ -5,11 +5,13 @@ import AppShell from './AppShell';
 export default function Dashboard({
   user,
   onLogout,
-  onOpenGate
+  onOpenGate,
+  onOpenPerformance
 }: {
   user: User;
   onLogout: () => void;
   onOpenGate: () => void;
+  onOpenPerformance: () => void;
 }) {
   const [gate, setGate] = useState<GateState | null>(null);
 
@@ -38,11 +40,16 @@ export default function Dashboard({
           <p className="kriyo-palier-note">{gateLabel}</p>
         </button>
 
-        <div className="kriyo-palier">
+        <button
+          type="button"
+          className="kriyo-palier"
+          onClick={onOpenPerformance}
+          style={{ textAlign: 'left', width: '100%', cursor: 'pointer', font: 'inherit', color: 'inherit' }}
+        >
           <p className="kriyo-palier-eyebrow">Palier 02</p>
           <p className="kriyo-palier-title">Score de Performance</p>
           <p className="kriyo-palier-note">Open</p>
-        </div>
+        </button>
 
         <div className="kriyo-palier" data-available="false">
           <p className="kriyo-palier-eyebrow">Palier 03</p>
