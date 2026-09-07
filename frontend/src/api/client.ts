@@ -31,16 +31,32 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    const detail = data && typeof data === 'object' && 'detail' in data ? String(data.detail) : response.statusText;
-    throw new Error(detail);
+    if (data && typeof data === 'object' && 'detail' in data) {
+      throw new Error(String(data.detail));
+    }
+    if (data && typeof data === 'object') {
+      throw new ApiValidationError(data as Record<string, string[]>);
+    }
+    throw new Error(response.statusText);
   }
 
   return data as T;
 }
 
+export class ApiValidationError extends Error {
+  fieldErrors: Record<string, string[]>;
+
+  constructor(fieldErrors: Record<string, string[]>) {
+    super(Object.values(fieldErrors).flat().join(' '));
+    this.fieldErrors = fieldErrors;
+  }
+}
+
 export const api = {
   health: () => request<{ status: string }>('/health/'),
   csrf: () => request<void>('/auth/csrf/'),
+  signup: (email: string, password: string) =>
+    request<User>('/auth/signup/', { method: 'POST', body: JSON.stringify({ email, password }) }),
   login: (email: string, password: string) =>
     request<User>('/auth/login/', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request<void>('/auth/logout/', { method: 'POST' }),

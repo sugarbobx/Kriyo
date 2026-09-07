@@ -1,13 +1,15 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { api, type User } from './api/client';
+import { api, ApiValidationError, type User } from './api/client';
 
 export default function App() {
   const [health, setHealth] = useState<'checking' | 'ok' | 'down'>('checking');
   const [user, setUser] = useState<User | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     api.health().then(() => setHealth('ok')).catch(() => setHealth('down'));
@@ -16,20 +18,32 @@ export default function App() {
     });
   }, []);
 
-  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
+    setSubmitting(true);
     try {
-      const loggedInUser = await api.login(email, password);
+      const loggedInUser = mode === 'login' ? await api.login(email, password) : await api.signup(email, password);
       setUser(loggedInUser);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed.');
+      if (err instanceof ApiValidationError) {
+        setError(Object.values(err.fieldErrors).flat().join(' '));
+      } else {
+        setError(err instanceof Error ? err.message : `${mode === 'login' ? 'Login' : 'Signup'} failed.`);
+      }
+    } finally {
+      setSubmitting(false);
     }
   }
 
   async function handleLogout() {
     await api.logout();
     setUser(null);
+  }
+
+  function switchMode(next: 'login' | 'signup') {
+    setMode(next);
+    setError('');
   }
 
   return (
@@ -49,18 +63,31 @@ export default function App() {
           <button onClick={handleLogout}>Log out</button>
         </div>
       ) : (
-        <form onSubmit={handleLogin} style={{ display: 'grid', gap: '0.5rem' }}>
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <button type="submit">Log in</button>
-          {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-        </form>
+        <div>
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <button type="button" onClick={() => switchMode('login')} disabled={mode === 'login'}>
+              Log in
+            </button>
+            <button type="button" onClick={() => switchMode('signup')} disabled={mode === 'signup'}>
+              Create account
+            </button>
+          </div>
+          <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '0.5rem' }}>
+            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              required
+            />
+            <button type="submit" disabled={submitting}>
+              {submitting ? 'Please wait...' : mode === 'login' ? 'Log in' : 'Create account'}
+            </button>
+            {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
+          </form>
+        </div>
       )}
     </main>
   );
