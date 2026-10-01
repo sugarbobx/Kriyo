@@ -1,6 +1,5 @@
 OVERALL_PASS_THRESHOLD = 0.75
 CRITERION_VALIDATED_THRESHOLD = 0.80
-CRITERION_WEIGHT = 0.20
 LOCK_DURATION_MINUTES = 30
 
 MESSAGE_TIERS = {
@@ -39,9 +38,14 @@ MESSAGE_TIERS = {
 
 
 def calculate_criterion_score(answers):
-    """answers: iterable of booleans (True = Yes). Assumes exactly 6 answers."""
+    """answers: iterable of (answer: bool, weight: float) pairs, True = Yes.
+    Weighted fraction of yes-weight over total weight, so per-question weight
+    actually affects the criterion score."""
     answers = list(answers)
-    return sum(1 for a in answers if a) / len(answers)
+    total_weight = sum(weight for _, weight in answers)
+    if total_weight == 0:
+        return 0.0
+    return sum(weight for answered, weight in answers if answered) / total_weight
 
 
 def is_criterion_validated(criterion_score):
@@ -49,8 +53,14 @@ def is_criterion_validated(criterion_score):
 
 
 def calculate_overall_score(criterion_scores):
-    """criterion_scores: iterable of the 5 criterion scores (0..1 each), equal 20% weight."""
-    return sum(score * CRITERION_WEIGHT for score in criterion_scores)
+    """criterion_scores: iterable of (score: float, weight_in_gate: float) pairs.
+    Normalized by total weight so results stay on a 0..1 scale even if the
+    criteria weights don't sum to exactly 1."""
+    criterion_scores = list(criterion_scores)
+    total_weight = sum(weight for _, weight in criterion_scores)
+    if total_weight == 0:
+        return 0.0
+    return sum(score * weight for score, weight in criterion_scores) / total_weight
 
 
 def get_message_tier(overall_score):

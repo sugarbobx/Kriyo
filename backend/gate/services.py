@@ -132,7 +132,7 @@ def record_answer(user, criterion_key, question_id, answer_value):
     if answered_count < 6:
         return {'criterion_complete': False, 'gate_complete': False}
 
-    answers = list(criterion_result.answers.values_list('answer', flat=True))
+    answers = list(criterion_result.answers.values_list('answer', 'question__weight'))
     score = scoring.calculate_criterion_score(answers)
     validated = scoring.is_criterion_validated(score)
     criterion_result.score = score
@@ -151,7 +151,9 @@ def record_answer(user, criterion_key, question_id, answer_value):
     if finalized_count < 5:
         return result
 
-    scores = list(attempt.criterion_results.exclude(score__isnull=True).values_list('score', flat=True))
+    scores = list(
+        attempt.criterion_results.exclude(score__isnull=True).values_list('score', 'criterion__weight_in_gate')
+    )
     overall_score = scoring.calculate_overall_score(scores)
     attempt.overall_score = overall_score
     attempt.completed_at = timezone.now()

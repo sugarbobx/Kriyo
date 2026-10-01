@@ -12,15 +12,20 @@ from .scoring import (
 )
 
 
+def _equal_weight(answers):
+    """Pairs each answer with the default 1/6 per-question weight."""
+    return [(a, 1 / 6) for a in answers]
+
+
 class CriterionScoreTests(TestCase):
     def test_all_yes(self):
-        self.assertEqual(calculate_criterion_score([True] * 6), 1.0)
+        self.assertEqual(calculate_criterion_score(_equal_weight([True] * 6)), 1.0)
 
     def test_all_no(self):
-        self.assertEqual(calculate_criterion_score([False] * 6), 0.0)
+        self.assertEqual(calculate_criterion_score(_equal_weight([False] * 6)), 0.0)
 
     def test_five_of_six(self):
-        self.assertAlmostEqual(calculate_criterion_score([True] * 5 + [False]), 5 / 6)
+        self.assertAlmostEqual(calculate_criterion_score(_equal_weight([True] * 5 + [False])), 5 / 6)
 
     def test_five_of_six_is_validated(self):
         # 5/6 = 0.8333.. >= 0.80
@@ -34,25 +39,44 @@ class CriterionScoreTests(TestCase):
 
     def test_invalidated_but_nonzero_still_counts(self):
         # 4/6 = 0.6667 -> not validated, but score is not zeroed
-        score = calculate_criterion_score([True, True, True, True, False, False])
+        score = calculate_criterion_score(_equal_weight([True, True, True, True, False, False]))
         self.assertAlmostEqual(score, 4 / 6)
         self.assertFalse(is_criterion_validated(score))
+
+    def test_unequal_weights_actually_shift_the_score(self):
+        # One heavy "No" (weight 0.5) among five light "Yes" (weight 0.1 each)
+        # should pull the score well below the unweighted 5/6.
+        answers = [(True, 0.1)] * 5 + [(False, 0.5)]
+        self.assertAlmostEqual(calculate_criterion_score(answers), 0.5 / 1.0)
+
+    def test_zero_total_weight_returns_zero(self):
+        self.assertEqual(calculate_criterion_score([(True, 0.0)] * 6), 0.0)
 
 
 class OverallScoreTests(TestCase):
     def test_all_perfect(self):
-        self.assertAlmostEqual(calculate_overall_score([1.0] * 5), 1.0)
+        self.assertAlmostEqual(calculate_overall_score([(1.0, 0.20)] * 5), 1.0)
 
     def test_all_zero(self):
-        self.assertEqual(calculate_overall_score([0.0] * 5), 0.0)
+        self.assertEqual(calculate_overall_score([(0.0, 0.20)] * 5), 0.0)
 
     def test_invalidated_criterion_still_contributes(self):
         # One criterion at 0 (all "No"), four perfect -> 4 * 0.20 = 0.80
-        self.assertAlmostEqual(calculate_overall_score([1.0, 1.0, 1.0, 1.0, 0.0]), 0.80)
+        self.assertAlmostEqual(
+            calculate_overall_score([(1.0, 0.20), (1.0, 0.20), (1.0, 0.20), (1.0, 0.20), (0.0, 0.20)]), 0.80
+        )
 
     def test_mixed_scores(self):
-        scores = [5 / 6, 5 / 6, 5 / 6, 5 / 6, 5 / 6]
-        self.assertAlmostEqual(calculate_overall_score(scores), 5 / 6 * 5 * 0.20)
+        scores = [(5 / 6, 0.20)] * 5
+        self.assertAlmostEqual(calculate_overall_score(scores), 5 / 6)
+
+    def test_unequal_criteria_weights_are_normalized(self):
+        # Weights don't sum to 1 (0.4 + 0.1*3) -> result must still be normalized to 0..1.
+        scores = [(1.0, 0.40), (0.0, 0.10), (0.0, 0.10), (0.0, 0.10)]
+        self.assertAlmostEqual(calculate_overall_score(scores), 0.40 / 0.70)
+
+    def test_zero_total_weight_returns_zero(self):
+        self.assertEqual(calculate_overall_score([(1.0, 0.0)] * 5), 0.0)
 
 
 class MessageTierBoundaryTests(TestCase):
