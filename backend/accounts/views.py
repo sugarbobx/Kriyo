@@ -1,11 +1,22 @@
 from django.contrib.auth import authenticate, login, logout
 from django.middleware.csrf import get_token
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 
 from .serializers import LoginSerializer, SignupSerializer, UserSerializer
+
+
+class LoginRateThrottle(AnonRateThrottle):
+    """Keyed by client IP (AllowAny view, no user yet). Rate set in
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']['login']."""
+    scope = 'login'
+
+
+class SignupRateThrottle(AnonRateThrottle):
+    scope = 'signup'
 
 
 @api_view(['GET'])
@@ -17,6 +28,7 @@ def csrf(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([SignupRateThrottle])
 def signup_view(request):
     serializer = SignupSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -27,6 +39,7 @@ def signup_view(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle])
 def login_view(request):
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
