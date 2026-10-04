@@ -117,7 +117,7 @@ SPECTACULAR_SETTINGS = {
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
 
-# Behind nginx, which sets X-Forwarded-Proto (infra/nginx/nginx.conf). Defaults
+# Behind nginx, which sets X-Forwarded-Proto (deploy/nginx/kriyo.conf). Defaults
 # follow DEBUG so local/sqlite dev keeps working over plain HTTP unchanged;
 # set explicitly via env once a real domain + TLS are in front of the VPS.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

@@ -2,8 +2,7 @@
 
 The production setup on the VPS: the Django + DRF API (`backend/`) and the
 React + Vite frontend (`frontend/`), run as **one app** behind the host nginx.
-No Docker is involved. (`infra/` and `docker/` hold the Docker-based setup and
-are not used here.)
+No Docker is involved.
 
 ```
 browser ──► nginx :80 ──┬── /api/ /admin/ /static/ ──► gunicorn 127.0.0.1:8000 (systemd: kriyo-backend)
