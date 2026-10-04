@@ -174,3 +174,54 @@ health check). A la fin :
 
 Marquer DONE ici avec le resultat reel de ces 4 verifications une fois
 execute, puis commit + push ce fichier depuis le VPS.
+
+**Mise a jour 2026-10-04 (meme jour, apres coup)** : une 4eme migration
+(`accounts.0002_seed_admin_user`) et un dashboard admin ont ete ajoutes
+depuis (voir entree ci-dessous) -- `kriyo-deploy.sh` les couvre
+automatiquement, pas de commande supplementaire. Ajouter aux verifications :
+`python manage.py showmigrations accounts` doit montrer `accounts.0002` `[X]`.
+
+---
+
+### [LOCAL] 2026-10-04 — Dashboard de metriques dans /admin + compte admin
+Statut: DONE
+
+Demande / remarque :
+Interface admin accessible via http://3.217.155.20/admin, avec login
+jznguetsa@afriksys.com / (mot de passe fourni par l'utilisateur, en clair, a
+sa demande explicite apres avoir ete prevenu du risque). Doit montrer :
+nombre d'utilisateurs inscrits, nombre d'utilisateurs connectes, et autres
+metriques pertinentes.
+
+Resultat attendu :
+- Compte superuser cree via migration de donnees
+  `accounts/migrations/0002_seed_admin_user.py` (idempotente --
+  `update_or_create` sur l'email, hash via `make_password`, pas de
+  `set_password()` qui ne fonctionne pas sur les modeles historiques des
+  migrations). **ATTENTION SECURITE** : le mot de passe est en clair dans ce
+  fichier de migration, committe sur GitHub -- accepte sciemment par
+  l'utilisateur. Si ce choix est reconsidere plus tard : changer le mot de
+  passe via `manage.py changepassword jznguetsa@afriksys.com` sur le VPS
+  (hors git) et purger/reecrire l'historique git si le repo est public.
+- Page `/admin/` (Django admin existant, inchange sinon) affiche en haut un
+  panneau de stats avant la liste des apps : utilisateurs inscrits (total +
+  nouveaux aujourd'hui/7j/30j), connectes actuellement (sessions Django non
+  expirees, requete reelle sur `django_session`, pas une approximation),
+  actifs aujourd'hui (Security Gate lance), taux de passage et score moyen
+  du Security Gate, comptes de trading (total + repartition par profil de
+  risque), trades (total + repartition par statut), PnL cumule plateforme,
+  engagement accepte aujourd'hui.
+- Implementation : `backend/core/admin.py` (fonction `_compute_dashboard_stats`
+  + monkeypatch de `admin.site.index`), `backend/templates/admin/index.html`
+  (override du template admin par defaut, necessite `TEMPLATES[0]['DIRS']`
+  pointant vers `backend/templates/` dans `config/settings.py` -- sinon le
+  template de `django.contrib.admin` gagne car il est liste avant `core`
+  dans `INSTALLED_APPS`).
+
+Notes d'execution :
+Teste en local : login via `/admin/login/` avec les identifiants fournis ->
+302 (succes), `/admin/` -> 200, dashboard affiche "Utilisateurs inscrits
+(total) 6" (comptes de test locaux), aucune trace d'erreur serveur. Suite de
+tests complete (59/59) toujours verte apres l'ajout. Migration
+`accounts.0002_seed_admin_user` incluse dans le batch de deploiement
+ci-dessus (meme commit/push), pas d'entree serveur separee necessaire.

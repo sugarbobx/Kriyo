@@ -1,0 +1,46 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div id="content-main" class="kriyo-dashboard">
+  <div class="module" style="margin-bottom: 20px;">
+    <h2>Kriyo — Vue d'ensemble</h2>
+    <table>
+      <tbody>
+        <tr><th scope="row">Utilisateurs inscrits (total)</th><td>{{ kriyo_stats.users_total }}</td></tr>
+        <tr><th scope="row">Connectés actuellement (sessions actives)</th><td>{{ kriyo_stats.users_connected_now }}</td></tr>
+        <tr><th scope="row">Actifs aujourd'hui (Security Gate lancé)</th><td>{{ kriyo_stats.dau }}</td></tr>
+        <tr><th scope="row">Nouveaux inscrits — aujourd'hui / 7j / 30j</th><td>{{ kriyo_stats.users_new_today }} / {{ kriyo_stats.users_new_7d }} / {{ kriyo_stats.users_new_30d }}</td></tr>
+        <tr><th scope="row">Engagement accepté aujourd'hui</th><td>{{ kriyo_stats.engagement_today }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module" style="margin-bottom: 20px;">
+    <h2>Security Gate</h2>
+    <table>
+      <tbody>
+        <tr><th scope="row">Tentatives décidées (passées ou verrouillées)</th><td>{{ kriyo_stats.gate_decided_count }}</td></tr>
+        <tr><th scope="row">Taux de passage</th><td>{% if kriyo_stats.gate_pass_rate is not None %}{{ kriyo_stats.gate_pass_rate }}%{% else %}—{% endif %}</td></tr>
+        <tr><th scope="row">Score moyen</th><td>{% if kriyo_stats.gate_avg_score is not None %}{{ kriyo_stats.gate_avg_score|floatformat:2 }}{% else %}—{% endif %}</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module" style="margin-bottom: 20px;">
+    <h2>Comptes &amp; Trades</h2>
+    <table>
+      <tbody>
+        <tr><th scope="row">Comptes de trading créés</th><td>{{ kriyo_stats.accounts_total }}</td></tr>
+        {% for row in kriyo_stats.accounts_by_profile %}
+        <tr><th scope="row">&nbsp;&nbsp;↳ {{ row.risk_profile__label }}</th><td>{{ row.n }}</td></tr>
+        {% endfor %}
+        <tr><th scope="row">Trades — total</th><td>{{ kriyo_stats.trades_total }}</td></tr>
+        <tr><th scope="row">&nbsp;&nbsp;↳ en cours / clôturés / verrouillés</th><td>{{ kriyo_stats.trades_en_cours }} / {{ kriyo_stats.trades_cloture }} / {{ kriyo_stats.trades_verrouille }}</td></tr>
+        <tr><th scope="row">PnL cumulé plateforme</th><td>{{ kriyo_stats.trades_total_pnl|floatformat:2 }} $</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{{ block.super }}
+{% endblock %}

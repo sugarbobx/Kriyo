@@ -72,7 +72,7 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
           className="kriyo-input"
           type="number"
           min="0"
-          step="100"
+          step="any"
           placeholder={dict.accounts.capitalPlaceholder}
           value={capital}
           onChange={(e) => setCapital(e.target.value)}
@@ -81,7 +81,7 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
           className="kriyo-input"
           type="number"
           min="0"
-          step="100"
+          step="any"
           placeholder={dict.accounts.balancePlaceholder}
           value={currentBalance}
           onChange={(e) => setCurrentBalance(e.target.value)}
