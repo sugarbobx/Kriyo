@@ -23,6 +23,11 @@ class Question(models.Model):
     order = models.PositiveSmallIntegerField()
     text = models.CharField(max_length=255)
     weight = models.FloatField(default=1 / 6)
+    # Which raw answer counts as correct for scoring. Most questions are
+    # phrased so "yes" is the good practice (True); a few per criterion are
+    # deliberately phrased so "no" is the good answer (False), so a user who
+    # blindly answers "yes" to everything can't trivially reach 100%.
+    positive_answer = models.BooleanField(default=True)
 
     class Meta:
         ordering = ['order']

@@ -54,14 +54,16 @@ const fr = dict({
     education: 'Éducation'
   },
   gate: {
-    title: 'Security Gate',
+    title: 'Sas de Sécurité',
     listSubtitle: 'Complète les 5 critères pour accéder au dashboard.',
     todo: 'À faire',
     lockedTitle: 'Session bloquée',
     lockedBadge: 'Verrouillé',
     continueLabel: 'Continuer',
-    psych: 'Psych',
-    tech: 'Tech',
+    psych: 'État Psychologique',
+    tech: 'Analyse Technique',
+    reviewTitle: 'Récapitulatif',
+    reviewSubtitle: 'Questions et réponses déjà enregistrées pour ce critère.',
     categories: {
       tension: 'Tension',
       screen_time: 'Screen time',
@@ -144,6 +146,10 @@ const fr = dict({
     executedMsg: 'Trade approuvé et enregistré.',
     errorMsg: "Impossible d'exécuter le trade.",
     noAccountsMsg: 'Ajoute d’abord un compte dans Comptes & Onboarding.',
+    groupLabels: { VR: 'Valeur Réelle', EP: 'Expérience Perçue', VP: 'Valeur Perçue' },
+    nextSection: 'Section suivante',
+    previousSection: 'Section précédente',
+    sectionProgress: 'Section {current} / {total}',
     questions: {
       'vr-structure': { label: 'Structure validée ?', description: 'La structure de marché est claire et validée.' },
       'vr-liquidity': { label: 'Liquidité prise ?', description: 'Le setup cible une zone de liquidité identifiable.' },
@@ -161,6 +167,7 @@ const fr = dict({
     subtitle: 'Configuration des comptes prop firm et des profils de risque.',
     namePlaceholder: 'Nom du compte (ex: FTMO 5K)',
     capitalPlaceholder: 'Capital initial',
+    balancePlaceholder: 'Balance actuelle',
     addButton: 'Ajouter un compte',
     savingButton: 'Sauvegarde...',
     noAccountsYet: 'Aucun compte local pour le moment.',
@@ -188,6 +195,7 @@ const fr = dict({
     errorClose: 'Impossible de clôturer le trade.',
     openedOn: 'Ouvert le',
     score: 'Score',
+    dailyPnlLabel: 'PnL du jour',
     reasons: {
       take_profit_forced: { label: 'Take Profit forcé', reason: 'Take Profit forcé atteint à {amount}.' },
       daily_drawdown: { label: 'Stop-Day actif', reason: 'Daily DD atteint à {amount}.' },
@@ -201,7 +209,7 @@ const fr = dict({
     heroTitle: 'Les règles avant la vitesse',
     heroDescription: 'Cette section pose les définitions utiles pour lire les écrans Kriyo sans ambiguïté.',
     pillars: [
-      { title: 'Security Gate', badge: 'Pilier 1', text: 'Onboarding psycho-technique à 5 critères. En cas d’échec, la session est bloquée 30 minutes avant un nouvel essai.' },
+      { title: 'Sas de Sécurité', badge: 'Pilier 1', text: 'Onboarding psycho-technique à 5 critères. En cas d’échec, la session est bloquée 30 minutes avant un nouvel essai.' },
       { title: 'Score de Performance', badge: 'Pilier 2', text: 'Le setup n’est exécutable qu’à score maximal. Pas de score intermédiaire toléré.' },
       { title: 'Prop Firm Routing', badge: 'Pilier 3', text: 'Chaque compte hérite d’un profil de risque qui force la logique de gestion: agressif, modéré ou conservateur.' }
     ],
@@ -318,8 +326,10 @@ const en = dict({
     lockedTitle: 'Session locked',
     lockedBadge: 'Locked',
     continueLabel: 'Continue',
-    psych: 'Psych',
-    tech: 'Tech',
+    psych: 'Psychological State',
+    tech: 'Technical Analysis',
+    reviewTitle: 'Review',
+    reviewSubtitle: 'Questions and answers already recorded for this criterion.',
     categories: {
       tension: 'Tension',
       screen_time: 'Screen time',
@@ -402,6 +412,10 @@ const en = dict({
     executedMsg: 'Trade approved and saved.',
     errorMsg: 'Could not execute the trade.',
     noAccountsMsg: 'Add an account first in Accounts & Onboarding.',
+    groupLabels: { VR: 'Real Value', EP: 'Perceived Experience', VP: 'Perceived Value' },
+    nextSection: 'Next section',
+    previousSection: 'Previous section',
+    sectionProgress: 'Section {current} / {total}',
     questions: {
       'vr-structure': { label: 'Structure validated?', description: 'The market structure is clear and validated.' },
       'vr-liquidity': { label: 'Liquidity targeted?', description: 'The setup targets an identifiable liquidity zone.' },
@@ -419,6 +433,7 @@ const en = dict({
     subtitle: 'Prop firm account and risk profile configuration.',
     namePlaceholder: 'Account name (e.g. FTMO 5K)',
     capitalPlaceholder: 'Initial capital',
+    balancePlaceholder: 'Current balance',
     addButton: 'Add an account',
     savingButton: 'Saving...',
     noAccountsYet: 'No local account yet.',
@@ -446,6 +461,7 @@ const en = dict({
     errorClose: 'Could not close the trade.',
     openedOn: 'Opened on',
     score: 'Score',
+    dailyPnlLabel: "Today's PnL",
     reasons: {
       take_profit_forced: { label: 'Forced Take Profit', reason: 'Forced Take Profit reached at {amount}.' },
       daily_drawdown: { label: 'Stop-Day active', reason: 'Daily DD reached at {amount}.' },

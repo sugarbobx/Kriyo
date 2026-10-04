@@ -14,13 +14,14 @@ class TradingAccountSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TradingAccount
-        fields = ['id', 'name', 'capital', 'payout_type', 'risk_profile', 'created_at']
+        fields = ['id', 'name', 'capital', 'current_balance', 'payout_type', 'risk_profile', 'created_at']
         read_only_fields = ['id', 'risk_profile', 'created_at']
 
 
 class CreateAccountSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=64)
     capital = serializers.FloatField(min_value=0.01)
+    current_balance = serializers.FloatField(min_value=0)
     payout_type = serializers.ChoiceField(choices=list(PAYOUT_TO_RISK_PROFILE.keys()))
 
 

@@ -122,11 +122,18 @@ class GateApiTests(APITestCase):
         self.client.force_authenticate(user=self.user)
 
     def _answer_criterion(self, key, values):
-        question_ids = list(Criterion.objects.get(key=key).questions.order_by('order').values_list('id', flat=True))
+        """values[i] means "answer correctly (True) or incorrectly (False) to
+        question i" -- translated to the actual raw answer sent via each
+        question's positive_answer, so callers don't need to care which
+        questions are reverse-phrased."""
+        questions = list(Criterion.objects.get(key=key).questions.order_by('order'))
         last_response = None
-        for question_id, value in zip(question_ids, values):
+        for question, value in zip(questions, values):
+            raw_answer = value if question.positive_answer else not value
             last_response = self.client.post(
-                f'/api/gate/criteria/{key}/answers/', {'question_id': question_id, 'answer': value}, format='json'
+                f'/api/gate/criteria/{key}/answers/',
+                {'question_id': question.id, 'answer': raw_answer},
+                format='json',
             )
         return last_response
 
@@ -194,6 +201,73 @@ class GateApiTests(APITestCase):
 
         expected = (4 / 6 + 1 + 1 + 1 + 1) * 0.20
         self.assertAlmostEqual(final.data['gate_result']['overall_score'], expected)
+
+
+class CriterionReviewTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email='gate-review@kriyo.local', password='TestPass123!', timezone='UTC')
+        self.client.force_authenticate(user=self.user)
+
+    def _answer_criterion(self, key, values):
+        questions = list(Criterion.objects.get(key=key).questions.order_by('order'))
+        for question, value in zip(questions, values):
+            raw_answer = value if question.positive_answer else not value
+            self.client.post(
+                f'/api/gate/criteria/{key}/answers/', {'question_id': question.id, 'answer': raw_answer}, format='json'
+            )
+
+    def test_review_is_rejected_before_criterion_is_completed(self):
+        response = self.client.get('/api/gate/criteria/tension/review/')
+        self.assertEqual(response.status_code, 409)
+
+    def test_review_returns_recorded_answers_after_completion(self):
+        self._answer_criterion('tension', [True, False, True, True, True, False])
+        response = self.client.get('/api/gate/criteria/tension/review/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 6)
+        self.assertEqual([a['order'] for a in response.data], [1, 2, 3, 4, 5, 6])
+        self.assertIn('text', response.data[0])
+        self.assertIn('answer', response.data[0])
+
+    def test_review_unknown_criterion_404(self):
+        response = self.client.get('/api/gate/criteria/not-a-real-key/review/')
+        self.assertEqual(response.status_code, 404)
+
+
+class ReversePhrasedQuestionTests(APITestCase):
+    """One question per criterion has positive_answer=False (migration 0004) --
+    answering "yes" to everything must not score 100% on that criterion."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email='gate-polarity@kriyo.local', password='TestPass123!', timezone='UTC')
+        self.client.force_authenticate(user=self.user)
+
+    def _answer_all_raw_true(self, key):
+        question_ids = list(Criterion.objects.get(key=key).questions.order_by('order').values_list('id', flat=True))
+        last_response = None
+        for question_id in question_ids:
+            last_response = self.client.post(
+                f'/api/gate/criteria/{key}/answers/', {'question_id': question_id, 'answer': True}, format='json'
+            )
+        return last_response
+
+    def test_answering_yes_to_the_reverse_phrased_question_does_not_score_it_correct(self):
+        response = self._answer_all_raw_true('tension')
+        # 5/6 correct: the reverse-phrased question (positive_answer=False) was
+        # answered True (raw "yes"), which is wrong for that one.
+        self.assertAlmostEqual(response.data['criterion']['score'], 5 / 6)
+
+    def test_answering_the_reverse_phrased_question_correctly_still_allows_6_6(self):
+        questions = list(Criterion.objects.get(key='tension').questions.order_by('order'))
+        last_response = None
+        for question in questions:
+            raw_answer = question.positive_answer  # True everywhere except the flipped one
+            last_response = self.client.post(
+                f'/api/gate/criteria/tension/answers/', {'question_id': question.id, 'answer': raw_answer}, format='json'
+            )
+        self.assertAlmostEqual(last_response.data['criterion']['score'], 1.0)
 
 
 class GateAnswerThrottleTests(APITestCase):

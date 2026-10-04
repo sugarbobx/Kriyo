@@ -14,6 +14,7 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
   const [accounts, setAccounts] = useState<TradingAccount[]>([]);
   const [name, setName] = useState('');
   const [capital, setCapital] = useState('');
+  const [currentBalance, setCurrentBalance] = useState('');
   const [payoutType, setPayoutType] = useState<PayoutType>('ON_DEMAND');
   const [status, setStatus] = useState<'loading' | 'ready' | 'saving' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -31,7 +32,14 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const capitalValue = Number(capital);
-    if (!name.trim() || !Number.isFinite(capitalValue) || capitalValue <= 0) {
+    const currentBalanceValue = Number(currentBalance);
+    if (
+      !name.trim() ||
+      !Number.isFinite(capitalValue) ||
+      capitalValue <= 0 ||
+      !Number.isFinite(currentBalanceValue) ||
+      currentBalanceValue < 0
+    ) {
       setMessage(dict.accounts.invalidForm);
       return;
     }
@@ -39,10 +47,11 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
     setStatus('saving');
     setMessage('');
     try {
-      const account = await api.performance.createAccount(name.trim(), capitalValue, payoutType);
+      const account = await api.performance.createAccount(name.trim(), capitalValue, currentBalanceValue, payoutType);
       setAccounts((current) => [account, ...current]);
       setName('');
       setCapital('');
+      setCurrentBalance('');
       setStatus('ready');
     } catch (err) {
       setStatus('error');
@@ -68,6 +77,15 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
           value={capital}
           onChange={(e) => setCapital(e.target.value)}
         />
+        <input
+          className="kriyo-input"
+          type="number"
+          min="0"
+          step="100"
+          placeholder={dict.accounts.balancePlaceholder}
+          value={currentBalance}
+          onChange={(e) => setCurrentBalance(e.target.value)}
+        />
         <select className="kriyo-input" value={payoutType} onChange={(e) => setPayoutType(e.target.value as PayoutType)}>
           {PAYOUT_TYPES.map((value) => (
             <option key={value} value={value}>
@@ -89,7 +107,8 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
             <div key={account.id} className="kriyo-palier">
               <p className="kriyo-palier-title">{account.name}</p>
               <p className="kriyo-palier-note">
-                {formatCurrency(account.capital)} · {account.payout_type} · {account.risk_profile.label}
+                {formatCurrency(account.capital)} → {formatCurrency(account.current_balance)} · {account.payout_type} ·{' '}
+                {account.risk_profile.label}
               </p>
             </div>
           ))

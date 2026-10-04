@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
-import { api, type CriterionState, type GateQuestion, type GateState, type MessageTier } from './api/client';
+import { api, type CriterionState, type GateQuestion, type GateReviewItem, type GateState, type MessageTier } from './api/client';
 import { formatCountdown } from './time';
 import AppShell from './AppShell';
 import { useLanguage } from './i18n/context';
 
-type Screen = 'loading' | 'locked' | 'list' | 'quiz' | 'result';
+type Screen = 'loading' | 'locked' | 'list' | 'quiz' | 'result' | 'review';
 type CriterionKey = 'tension' | 'screen_time' | 'phone' | 'macro' | 'alignment';
 
 interface ResultData {
@@ -24,6 +24,7 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
   const [result, setResult] = useState<ResultData | null>(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [reviewItems, setReviewItems] = useState<GateReviewItem[]>([]);
 
   function applyState(state: GateState) {
     setCriteria(state.criteria);
@@ -73,6 +74,18 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
       setScreen('quiz');
     } catch {
       setError('Error loading the questions.');
+    }
+  }
+
+  async function openReview(key: CriterionKey) {
+    setError('');
+    try {
+      const items = await api.gate.review(key);
+      setReviewItems(items);
+      setActiveCriterion(key);
+      setScreen('review');
+    } catch {
+      setError('Error loading the review.');
     }
   }
 
@@ -168,6 +181,25 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
     );
   }
 
+  if (screen === 'review' && activeCriterion) {
+    return (
+      <AppShell title={dict.gate.reviewTitle} subtitle={dict.gate.reviewSubtitle}>
+        <div className="kriyo-stack">
+          {reviewItems.map((item) => (
+            <div key={item.id} className="kriyo-palier">
+              <p className="kriyo-palier-title">{dict.gate.questions[activeCriterion][item.order - 1]}</p>
+              <p className="kriyo-palier-note">{item.answer ? dict.common.yes : dict.common.no}</p>
+            </div>
+          ))}
+        </div>
+        {error ? <p className="kriyo-error">{error}</p> : null}
+        <button className="kriyo-btn kriyo-btn--secondary" onClick={() => setScreen('list')}>
+          {dict.common.back}
+        </button>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell title={dict.gate.title} subtitle={dict.gate.listSubtitle}>
       <div className="kriyo-stack">
@@ -180,7 +212,7 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
               type="button"
               className="kriyo-criterion-row"
               data-state={state}
-              onClick={() => openCriterion(key)}
+              onClick={() => (criterion.attempted ? openReview(key) : openCriterion(key))}
             >
               <div>
                 <p className="kriyo-palier-title" style={{ margin: 0 }}>

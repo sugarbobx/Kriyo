@@ -1,0 +1,176 @@
+# Kriyo — Journal de developpement
+
+Journal des modifications et remarques du proprietaire du projet, consigne au
+fil de l'eau. Ce fichier est versionne (git) et partage entre la machine
+locale et le VPS de production — c'est le pont entre les deux sessions
+Claude qui travaillent sur ce repo.
+
+## Protocole — a lire avant toute action
+
+### 1. Determiner l'environnement d'execution
+
+Avant d'executer une tache marquee `[SERVER]`, verifier sur QUELLE machine
+cette session tourne :
+
+- **LOCAL** (poste de dev Windows) si le repertoire de travail ressemble a
+  `C:\xampp\htdocs\Kriyo\Kriyo` (ou `/c/xampp/htdocs/Kriyo/Kriyo` sous
+  Git Bash) — OS Windows.
+- **SERVER** (VPS production) si TOUTES ces conditions sont vraies :
+  - OS Linux
+  - repertoire de travail sous `/home/ubuntu/kriyo`
+  - le fichier `/etc/systemd/system/kriyo-backend.service` existe
+  (commande de verif rapide : `test -f /etc/systemd/system/kriyo-backend.service && echo SERVER || echo LOCAL`)
+
+Si l'environnement ne peut pas etre determine avec certitude, NE PAS executer
+les taches `[SERVER]` — demander confirmation a l'utilisateur.
+
+### 2. Portee des taches
+
+Chaque entree ci-dessous porte un tag :
+
+- `[LOCAL]` — a faire uniquement sur le poste de dev (code, config repo, etc.)
+- `[SERVER]` — a faire uniquement sur le VPS (deploiement, systemctl, nginx,
+  migrations en prod, variables d'env `.env` du serveur, certificats, etc.)
+- `[BOTH]` — a faire des deux cotes (rare — generalement juste "pull" suffit
+  cote serveur puisque le code vient du repo)
+
+Et un statut : `TODO` / `EN_COURS` / `BLOQUE` / `DONE`.
+
+### 3. Synchronisation — regle absolue
+
+- Toute entree ajoutee en session LOCAL doit etre **committee et pushee**
+  immediatement pour etre visible cote SERVER (`git pull`).
+- Toute tache `[SERVER]` executee doit etre **marquee DONE avec un resume du
+  resultat reel obtenu**, puis **committee et pushee** depuis le VPS, pour
+  que la session LOCAL la voie au prochain pull.
+- Ne jamais executer une tache deja `DONE`. Si le resultat semble incorrect,
+  ouvrir une nouvelle entree plutot que de rouvrir l'ancienne.
+
+### 4. Reference architecture
+
+Le schema d'architecture de reference (fonctionnel + technique + UX + UI,
+avec tous les liens inter-couches) est `Kriyo_Global.txt`, tenu a jour sur
+le poste local dans `Documents/Jayman/IT/Projects/Kriyo App/`. Il n'est pas
+dans ce repo — s'y referer pour toute decision de design/flow avant de
+proposer une implementation qui en devierait.
+
+---
+
+## Journal
+
+<!--
+Format d'une entree :
+
+### [SCOPE] AAAA-MM-JJ — Titre court
+Statut: TODO | EN_COURS | BLOQUE | DONE
+
+Demande / remarque :
+(ce que l'utilisateur a dit, reformule clairement)
+
+Resultat attendu :
+(critere de succes explicite et verifiable — ce que l'agent qui execute doit
+obtenir, pas juste "faire le changement")
+
+Notes d'execution : (rempli par l'agent qui traite la tache, au moment ou il
+passe le statut a DONE — ce qui a ete fait reellement, ecarts eventuels)
+-->
+
+### [LOCAL] 2026-10-04 — Batch de 8 corrections UI/UX + logique (gate, comptes, tracking, PWA)
+Statut: DONE
+
+Demande / remarque :
+Retour utilisateur sur capture d'ecran apres test de l'app :
+1. Changement de langue pas effectif sur certains libelles (titre Security Gate, PSYCH, TECH).
+2. PSYCH -> "Etat Psychologique", TECH -> "Analyse Technique".
+3. Repondre "Oui" a toutes les questions donne toujours 100% -- questions mal
+   formulees (aucune n'est inversee), donc un utilisateur qui repond "Oui"
+   partout sans reflechir max le score a chaque fois.
+4. Un critere deja complete reste cliquable et rouvre le quiz (devrait ouvrir
+   un rapport des questions/reponses a la place).
+5. A l'ajout d'un compte, l'utilisateur doit pouvoir renseigner le capital
+   initial ET la balance actuelle.
+6. Un compte nouvellement ajoute ne doit pas etre selectionne automatiquement
+   pour le suivi.
+7. VR / EP / VP a ecrire en toutes lettres (VR = Valeur Reelle, EP =
+   Experience Percue, VP = Valeur Percue), et chaque section doit s'afficher
+   l'une apres l'autre (pas en liste simultanee).
+8. Le calcul du PnL journalier n'est pas correct -- "Resultat journalise"
+   devrait afficher le cumul des trades clotures du jour, pas juste le
+   dernier trade clos.
+9. L'application ne fonctionne plus en PWA -- a reinstaller.
+
+Resultat attendu :
+1-2. `dict.gate.title` = "Sas de Securite" en FR (reste "Security Gate" en
+   EN) ; `dict.gate.psych`/`tech` = "Etat Psychologique"/"Analyse Technique"
+   en FR, "Psychological State"/"Technical Analysis" en EN. Visible immediatement
+   cote FR sans besoin de rebuild backend (fichier frontend uniquement).
+3. Une question par critere (5 au total) est reverse-phrasee en base
+   (`Question.positive_answer=False`), le scoring compare la reponse brute a
+   `positive_answer` au lieu de supposer "Oui"=bon partout. Repondre "Oui" a
+   tout donne desormais 5/6 sur chacun des 5 criteres (jamais 100% en mode
+   "yes-sayer"). Necessite les migrations `gate.0003`/`gate.0004` appliquees.
+4. Cliquer un critere deja repondu ouvre un nouvel ecran "Recapitulatif"
+   (GET `/api/gate/criteria/:key/review/`) listant les 6 questions et la
+   reponse enregistree (Oui/Non), au lieu de relancer le quiz. Necessite
+   `gate.0003` (positive_answer n'est pas affiche mais la route depend du
+   meme etat de migration).
+5. `TradingAccount.current_balance` (nouveau champ, distinct de `capital`)
+   saisi a la creation du compte, affiche dans la liste des comptes
+   ("capital -> balance actuelle"). Necessite la migration `performance.0003`
+   (backfill: comptes existants -> current_balance = capital).
+6. Performance.tsx n'auto-selectionne plus les comptes au chargement
+   (`selectedIds` demarre vide) -- l'utilisateur choisit explicitement quels
+   comptes suivre.
+7. Groupes VR/EP/VP affiches un a la fois avec navigation
+   "Section precedente"/"Section suivante", libelles complets affiches au
+   lieu du sigle brut.
+8. Nouvelle carte "PnL du jour" sur l'ecran Tracking, calculee comme la somme
+   des `pnl` de tous les trades clotures aujourd'hui (comparaison sur la date
+   locale du navigateur) -- toujours visible des qu'au moins un trade a ete
+   cloture aujourd'hui, independamment de la derniere action de cloture.
+9. `vite-plugin-pwa` installe et configure (manifest + service worker
+   auto-genere, `/api/` et `/admin/` explicitement exclus du cache -- jamais
+   servis depuis le cache). Icones generees dans `frontend/public/icons/`
+   (source SVG + script `frontend/scripts/generate-pwa-icons.mjs`, a
+   relancer si le branding change). Verifie par `npm run build` (genere
+   `dist/sw.js` + `dist/manifest.webmanifest`) -- l'installation PWA reelle
+   (prompt navigateur, mode standalone) reste a verifier manuellement en
+   prod une fois servi en HTTPS (les PWA n'installent pas sur HTTP sauf
+   localhost).
+
+Notes d'execution :
+Backend : migrations `gate.0003_question_positive_answer`,
+`gate.0004_reverse_phrase_one_question_per_criterion`,
+`performance.0003_tradingaccount_current_balance` appliquees et testees en
+local (59/59 tests backend passent, y compris nouveaux tests de polarite
+et de revue de critere). Frontend : `npm run build` passe sans erreur
+TypeScript, PWA generee. Tout est committe sur `main` -- cote serveur il
+reste uniquement a deployer (voir entree ci-dessous).
+
+---
+
+### [SERVER] 2026-10-04 — Deployer le batch de 8 corrections (migrations + rebuild frontend)
+Statut: TODO
+
+Demande / remarque :
+Le commit du batch ci-dessus (prefixe "fix: 8 corrections UI/UX...") contient
+3 nouvelles migrations Django (2 sur `gate`, 1 sur `performance`) et des
+changements frontend (nouveau build PWA, nouveaux champs de formulaire). Rien
+de tout cela n'est visible en production tant que le VPS n'a pas pull + migre
++ rebuild.
+
+Resultat attendu :
+Executer `~/kriyo/deploy/kriyo-deploy.sh` (gere deja : git pull --ff-only,
+pip install, `manage.py migrate --noinput`, `collectstatic`, restart
+`kriyo-backend`, `npm ci && npm run build`, rsync vers `/var/www/kriyo`,
+health check). A la fin :
+- `curl -fsS http://127.0.0.1:8000/api/health/` renvoie `{"status":"ok"}`
+- `curl -o /dev/null -w "%{http_code}" http://127.0.0.1/` renvoie `200`
+- Les 3 migrations (`gate.0003`, `gate.0004`, `performance.0003`) apparaissent
+  dans `python manage.py showmigrations gate performance` comme appliquees
+  (`[X]`)
+- `/var/www/kriyo/manifest.webmanifest` et `/var/www/kriyo/sw.js` existent
+  (confirme que le build PWA a bien ete publie)
+
+Marquer DONE ici avec le resultat reel de ces 4 verifications une fois
+execute, puis commit + push ce fichier depuis le VPS.

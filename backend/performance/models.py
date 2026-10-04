@@ -37,6 +37,7 @@ class TradingAccount(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name='trading_accounts', on_delete=models.CASCADE)
     name = models.CharField(max_length=64)
     capital = models.FloatField()
+    current_balance = models.FloatField()
     payout_type = models.CharField(max_length=16, choices=PAYOUT_CHOICES)
     risk_profile = models.ForeignKey(RiskProfile, related_name='accounts', on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -5,11 +5,12 @@ class AccountNotOwnedError(Exception):
     pass
 
 
-def create_account(user, name, capital, payout_type):
+def create_account(user, name, capital, current_balance, payout_type):
     risk_profile_type = PAYOUT_TO_RISK_PROFILE[payout_type]
     risk_profile = RiskProfile.objects.get(type=risk_profile_type)
     return TradingAccount.objects.create(
-        user=user, name=name, capital=capital, payout_type=payout_type, risk_profile=risk_profile
+        user=user, name=name, capital=capital, current_balance=current_balance,
+        payout_type=payout_type, risk_profile=risk_profile,
     )
 
 

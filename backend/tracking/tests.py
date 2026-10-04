@@ -61,7 +61,7 @@ class CloseTradeApiTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         self.moderate_profile = RiskProfile.objects.get(type='MODERE')
         self.account = TradingAccount.objects.create(
-            user=self.user, name='Test', capital=1000, payout_type='DEUX_SEMAINES', risk_profile=self.moderate_profile
+            user=self.user, name='Test', capital=1000, current_balance=1000, payout_type='DEUX_SEMAINES', risk_profile=self.moderate_profile
         )
         self.trade = Trade.objects.create(
             account=self.account, score_vr=3, score_ep=3, score_vp=3, score_total=9, status='EN_COURS'
@@ -101,7 +101,7 @@ class CloseTradeThrottleTests(APITestCase):
         self.user = User.objects.create_user(email='tracking-throttle@kriyo.local', password='TestPass123!')
         self.client.force_authenticate(user=self.user)
         self.account = TradingAccount.objects.create(
-            user=self.user, name='Test', capital=1000, payout_type='DEUX_SEMAINES',
+            user=self.user, name='Test', capital=1000, current_balance=1000, payout_type='DEUX_SEMAINES',
             risk_profile=RiskProfile.objects.get(type='MODERE'),
         )
 

@@ -16,7 +16,7 @@ class PerformanceApiTests(APITestCase):
     def test_create_account_assigns_risk_profile_from_payout(self):
         response = self.client.post(
             '/api/performance/accounts/',
-            {'name': 'FTMO 5K', 'capital': 5000, 'payout_type': 'ON_DEMAND'},
+            {'name': 'FTMO 5K', 'capital': 5000, 'current_balance': 5000, 'payout_type': 'ON_DEMAND'},
             format='json',
         )
         self.assertEqual(response.status_code, 201)
@@ -27,7 +27,7 @@ class PerformanceApiTests(APITestCase):
 
     def test_list_accounts_only_returns_own(self):
         TradingAccount.objects.create(
-            user=self.other_user, name='Not mine', capital=1000, payout_type='ON_DEMAND',
+            user=self.other_user, name='Not mine', capital=1000, current_balance=1000, payout_type='ON_DEMAND',
             risk_profile=self.agressif_profile,
         )
         response = self.client.get('/api/performance/accounts/')
@@ -70,7 +70,7 @@ class PerformanceApiTests(APITestCase):
 
     def test_cannot_execute_trade_on_someone_elses_account(self):
         foreign_account = TradingAccount.objects.create(
-            user=self.other_user, name='Not mine', capital=1000, payout_type='ON_DEMAND',
+            user=self.other_user, name='Not mine', capital=1000, current_balance=1000, payout_type='ON_DEMAND',
             risk_profile=self.agressif_profile,
         )
         response = self.client.post(
@@ -84,7 +84,7 @@ class PerformanceApiTests(APITestCase):
     def _create_account(self, name='FTMO 5K'):
         response = self.client.post(
             '/api/performance/accounts/',
-            {'name': name, 'capital': 5000, 'payout_type': 'ON_DEMAND'},
+            {'name': name, 'capital': 5000, 'current_balance': 5000, 'payout_type': 'ON_DEMAND'},
             format='json',
         )
         return TradingAccount.objects.get(id=response.data['id'])
@@ -100,21 +100,21 @@ class PerformanceThrottleTests(APITestCase):
         for _ in range(30):
             response = self.client.post(
                 '/api/performance/accounts/',
-                {'name': 'FTMO 5K', 'capital': 5000, 'payout_type': 'ON_DEMAND'},
+                {'name': 'FTMO 5K', 'capital': 5000, 'current_balance': 5000, 'payout_type': 'ON_DEMAND'},
                 format='json',
             )
             self.assertNotEqual(response.status_code, 429)
 
         response = self.client.post(
             '/api/performance/accounts/',
-            {'name': 'FTMO 5K', 'capital': 5000, 'payout_type': 'ON_DEMAND'},
+            {'name': 'FTMO 5K', 'capital': 5000, 'current_balance': 5000, 'payout_type': 'ON_DEMAND'},
             format='json',
         )
         self.assertEqual(response.status_code, 429)
 
     def test_trade_execution_has_its_own_independent_limit(self):
         account = TradingAccount.objects.create(
-            user=self.user, name='FTMO 5K', capital=5000, payout_type='ON_DEMAND',
+            user=self.user, name='FTMO 5K', capital=5000, current_balance=5000, payout_type='ON_DEMAND',
             risk_profile=RiskProfile.objects.get(type='AGRESSIF'),
         )
         for _ in range(30):

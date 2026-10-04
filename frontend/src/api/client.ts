@@ -86,6 +86,13 @@ export interface GateQuestion {
   text: string;
 }
 
+export interface GateReviewItem {
+  id: number;
+  order: number;
+  text: string;
+  answer: boolean;
+}
+
 export interface AnswerResult {
   criterion_complete: boolean;
   criterion?: { key: string; label: string; score: number; validated: boolean };
@@ -114,6 +121,7 @@ export interface TradingAccount {
   id: number;
   name: string;
   capital: number;
+  current_balance: number;
   payout_type: PayoutType;
   risk_profile: RiskProfile;
   created_at: string;
@@ -160,6 +168,7 @@ export const api = {
   gate: {
     current: () => request<GateState>('/gate/current/'),
     questions: (criterionKey: string) => request<GateQuestion[]>(`/gate/criteria/${criterionKey}/questions/`),
+    review: (criterionKey: string) => request<GateReviewItem[]>(`/gate/criteria/${criterionKey}/review/`),
     answer: (criterionKey: string, questionId: number, answer: boolean) =>
       request<AnswerResult>(`/gate/criteria/${criterionKey}/answers/`, {
         method: 'POST',
@@ -169,10 +178,10 @@ export const api = {
   performance: {
     riskProfiles: () => request<RiskProfile[]>('/performance/risk-profiles/'),
     accounts: () => request<TradingAccount[]>('/performance/accounts/'),
-    createAccount: (name: string, capital: number, payoutType: PayoutType) =>
+    createAccount: (name: string, capital: number, currentBalance: number, payoutType: PayoutType) =>
       request<TradingAccount>('/performance/accounts/', {
         method: 'POST',
-        body: JSON.stringify({ name, capital, payout_type: payoutType })
+        body: JSON.stringify({ name, capital, current_balance: currentBalance, payout_type: payoutType })
       }),
     trades: () => request<Trade[]>('/performance/trades/'),
     executeTrade: (accountIds: number[], scoreVr: number, scoreEp: number, scoreVp: number) =>

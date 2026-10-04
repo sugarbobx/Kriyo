@@ -107,6 +107,35 @@ def get_questions(criterion_key):
     return criterion.questions.all()
 
 
+class CriterionNotAnsweredError(Exception):
+    pass
+
+
+def get_criterion_review(user, criterion_key):
+    """Returns this attempt's recorded answers for an already-finalized
+    criterion, so the user can review what they answered instead of
+    re-entering the quiz."""
+    try:
+        criterion = Criterion.objects.get(key=criterion_key)
+    except Criterion.DoesNotExist:
+        raise InvalidCriterionError()
+
+    attempt = get_current_attempt(user)
+    try:
+        criterion_result = attempt.criterion_results.get(criterion=criterion)
+    except CriterionResult.DoesNotExist:
+        raise CriterionNotAnsweredError()
+
+    if criterion_result.score is None:
+        raise CriterionNotAnsweredError()
+
+    answers = criterion_result.answers.select_related('question').order_by('question__order')
+    return [
+        {'id': a.question.id, 'order': a.question.order, 'text': a.question.text, 'answer': a.answer}
+        for a in answers
+    ]
+
+
 def record_answer(user, criterion_key, question_id, answer_value):
     """Saves one answer, finalizing the criterion on its 6th distinct answer and
     the whole gate attempt once all 5 criteria are finalized. Returns a dict
@@ -132,7 +161,8 @@ def record_answer(user, criterion_key, question_id, answer_value):
     if answered_count < 6:
         return {'criterion_complete': False, 'gate_complete': False}
 
-    answers = list(criterion_result.answers.values_list('answer', 'question__weight'))
+    raw_answers = criterion_result.answers.values_list('answer', 'question__positive_answer', 'question__weight')
+    answers = [(answer == positive_answer, weight) for answer, positive_answer, weight in raw_answers]
     score = scoring.calculate_criterion_score(answers)
     validated = scoring.is_criterion_validated(score)
     criterion_result.score = score

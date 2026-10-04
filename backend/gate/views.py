@@ -30,6 +30,18 @@ def questions(request, criterion_key):
     return Response(QuestionSerializer(qs, many=True).data)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def criterion_review(request, criterion_key):
+    try:
+        answers = services.get_criterion_review(request.user, criterion_key)
+    except services.InvalidCriterionError:
+        return Response({'detail': 'Unknown criterion.'}, status=status.HTTP_404_NOT_FOUND)
+    except services.CriterionNotAnsweredError:
+        return Response({'detail': 'This criterion has not been completed yet.'}, status=status.HTTP_409_CONFLICT)
+    return Response(answers)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @throttle_classes([GateAnswerRateThrottle])

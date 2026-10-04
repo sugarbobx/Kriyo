@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api, type TradingAccount } from './api/client';
 import AppShell from './AppShell';
 import { useLanguage } from './i18n/context';
+import { interpolate } from './i18n/translations';
 
 const questionIds = [
   'vr-structure', 'vr-liquidity', 'vr-trend',
@@ -24,6 +25,8 @@ function groupScore(answers: Answers, group: 'VR' | 'EP' | 'VP') {
   return questionIds.filter((id) => questionGroup[id] === group && answers[id]).length;
 }
 
+const groups = ['VR', 'EP', 'VP'] as const;
+
 export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts: () => void; onBack: () => void }) {
   const { dict } = useLanguage();
   const [accounts, setAccounts] = useState<TradingAccount[]>([]);
@@ -31,6 +34,7 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
   const [answers, setAnswers] = useState<Answers>(defaultAnswers);
   const [status, setStatus] = useState<'loading' | 'ready' | 'saving' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const [groupIndex, setGroupIndex] = useState(0);
 
   const vr = useMemo(() => groupScore(answers, 'VR'), [answers]);
   const ep = useMemo(() => groupScore(answers, 'EP'), [answers]);
@@ -43,7 +47,6 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
       .accounts()
       .then((data) => {
         setAccounts(data);
-        setSelectedIds(data.map((a) => a.id));
         setStatus('ready');
         setMessage(data.length > 0 ? '' : dict.performance.noAccountsMsg);
       })
@@ -66,6 +69,7 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
     try {
       await api.performance.executeTrade(selectedIds, vr, ep, vp);
       setAnswers(defaultAnswers);
+      setGroupIndex(0);
       setStatus('ready');
       setMessage(dict.performance.executedMsg);
     } catch (err) {
@@ -117,41 +121,63 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
         </p>
       </div>
 
-      {(['VR', 'EP', 'VP'] as const).map((group) => (
-        <div key={group} className="kriyo-stack">
-          <p className="kriyo-palier-eyebrow">{group}</p>
-          {questionIds
-            .filter((id) => questionGroup[id] === group)
-            .map((id) => {
-              const checked = answers[id];
-              const question = dict.performance.questions[id];
-              return (
-                <div key={id} className="kriyo-palier">
-                  <p className="kriyo-palier-title">{question.label}</p>
-                  <p className="kriyo-palier-note">{question.description}</p>
-                  <div className="kriyo-btn-row" style={{ marginTop: '0.6rem' }}>
-                    <button
-                      type="button"
-                      className="kriyo-btn kriyo-btn--secondary"
-                      data-active={!checked}
-                      onClick={() => updateAnswer(id, false)}
-                    >
-                      {dict.common.no}
-                    </button>
-                    <button
-                      type="button"
-                      className="kriyo-btn kriyo-btn--secondary"
-                      data-active={checked}
-                      onClick={() => updateAnswer(id, true)}
-                    >
-                      {dict.common.yes}
-                    </button>
+      {(() => {
+        const group = groups[groupIndex];
+        return (
+          <div className="kriyo-stack">
+            <p className="kriyo-palier-eyebrow">{dict.performance.groupLabels[group]}</p>
+            {questionIds
+              .filter((id) => questionGroup[id] === group)
+              .map((id) => {
+                const checked = answers[id];
+                const question = dict.performance.questions[id];
+                return (
+                  <div key={id} className="kriyo-palier">
+                    <p className="kriyo-palier-title">{question.label}</p>
+                    <p className="kriyo-palier-note">{question.description}</p>
+                    <div className="kriyo-btn-row" style={{ marginTop: '0.6rem' }}>
+                      <button
+                        type="button"
+                        className="kriyo-btn kriyo-btn--secondary"
+                        data-active={!checked}
+                        onClick={() => updateAnswer(id, false)}
+                      >
+                        {dict.common.no}
+                      </button>
+                      <button
+                        type="button"
+                        className="kriyo-btn kriyo-btn--secondary"
+                        data-active={checked}
+                        onClick={() => updateAnswer(id, true)}
+                      >
+                        {dict.common.yes}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-        </div>
-      ))}
+                );
+              })}
+            <div className="kriyo-btn-row">
+              <button
+                type="button"
+                className="kriyo-btn kriyo-btn--secondary"
+                disabled={groupIndex === 0}
+                onClick={() => setGroupIndex((i) => Math.max(0, i - 1))}
+              >
+                {dict.performance.previousSection}
+              </button>
+              <button
+                type="button"
+                className="kriyo-btn kriyo-btn--secondary"
+                disabled={groupIndex === groups.length - 1}
+                onClick={() => setGroupIndex((i) => Math.min(groups.length - 1, i + 1))}
+              >
+                {dict.performance.nextSection}
+              </button>
+            </div>
+            <p className="kriyo-dim">{interpolate(dict.performance.sectionProgress, { current: String(groupIndex + 1), total: String(groups.length) })}</p>
+          </div>
+        );
+      })()}
 
       <button className="kriyo-btn kriyo-btn--primary" disabled={!canExecute || status === 'saving'} onClick={executeTrade}>
         {status === 'saving' ? dict.performance.executingButton : canExecute ? dict.performance.executeButton : dict.performance.incompleteButton}

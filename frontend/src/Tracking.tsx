@@ -33,6 +33,21 @@ export default function Tracking({ onBack }: { onBack: () => void }) {
   const openTrades = trades.filter((t) => t.status === 'EN_COURS');
   const closingTrade = closingTradeId != null ? trades.find((t) => t.id === closingTradeId) ?? null : null;
 
+  function isToday(isoDate: string) {
+    const d = new Date(isoDate);
+    const now = new Date();
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+  }
+
+  const dailyPnl = useMemo(
+    () =>
+      trades
+        .filter((t) => t.status !== 'EN_COURS' && t.closed_at && isToday(t.closed_at) && t.pnl != null)
+        .reduce((sum, t) => sum + (t.pnl ?? 0), 0),
+    [trades]
+  );
+  const hasClosedToday = trades.some((t) => t.status !== 'EN_COURS' && t.closed_at && isToday(t.closed_at));
+
   function outcomeText(outcome: TradeOutcome) {
     const copy = dict.tracking.reasons[outcome.reason_key];
     return { label: copy.label, reason: interpolate(copy.reason, { amount: formatCurrency(outcome.amount) }) };
@@ -102,6 +117,13 @@ export default function Tracking({ onBack }: { onBack: () => void }) {
           })
         )}
       </div>
+
+      {hasClosedToday ? (
+        <div className="kriyo-result-card" data-tier={dailyPnl < 0 ? 'locked' : 'pass_good'}>
+          <p className="kriyo-result-title">{dict.tracking.dailyPnlLabel}</p>
+          <p className="kriyo-result-body">{formatCurrency(dailyPnl)}</p>
+        </div>
+      ) : null}
 
       {lastOutcome ? (
         <div className="kriyo-result-card" data-tier={lastOutcome.outcome.status === 'VERROUILLE' ? 'locked' : 'pass_good'}>
