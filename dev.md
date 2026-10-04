@@ -150,7 +150,7 @@ reste uniquement a deployer (voir entree ci-dessous).
 ---
 
 ### [SERVER] 2026-10-04 — Deployer le batch de 8 corrections (migrations + rebuild frontend)
-Statut: TODO
+Statut: DONE
 
 Demande / remarque :
 Le commit du batch ci-dessus (prefixe "fix: 8 corrections UI/UX...") contient
@@ -172,8 +172,38 @@ health check). A la fin :
 - `/var/www/kriyo/manifest.webmanifest` et `/var/www/kriyo/sw.js` existent
   (confirme que le build PWA a bien ete publie)
 
-Marquer DONE ici avec le resultat reel de ces 4 verifications une fois
-execute, puis commit + push ce fichier depuis le VPS.
+Notes d'execution :
+Execute le 2026-10-04 sur le VPS (verif environnement : `SERVER`), commit
+deploye `df7bb2b`. Sauvegarde prealable de la base :
+`~/kriyo-backups/db.sqlite3.2026-10-04_1131-before-df7bb2b`.
+`~/kriyo/deploy/kriyo-deploy.sh` termine sans erreur. Resultat des 4
+verifications :
+- Health API : `{"status":"ok"}` -- OK
+- Frontend `http://127.0.0.1/` : `200` -- OK
+- `showmigrations gate performance` : `[X] gate.0003_question_positive_answer`,
+  `[X] gate.0004_reverse_phrase_one_question_per_criterion`,
+  `[X] performance.0003_tradingaccount_current_balance` -- OK
+- `/var/www/kriyo/manifest.webmanifest` (526 o) et `/var/www/kriyo/sw.js`
+  (1483 o) presents, servis en 200 depuis l'IP publique -- OK
+
+Verifications supplementaires : 59/59 tests backend passent sur le VPS ;
+5 questions sur 30 en base ont `positive_answer=False` (1 par critere, comme
+attendu).
+
+Ecart corrige au passage : nginx servait `manifest.webmanifest` en
+`application/octet-stream` (type absent de `mime.types`). Ajout d'un bloc
+`location = /manifest.webmanifest` avec `application/manifest+json` dans
+`deploy/nginx/kriyo.conf`, installe et recharge sur le VPS.
+
+Remarque pour LOCAL (non bloquant) : dans `frontend/vite.config.ts`, la regle
+workbox `runtimeCaching` `urlPattern: /^\/api\//` ne matche jamais (workbox
+teste une RegExp contre l'URL complete `http://.../api/...`, pas le chemin).
+Sans effet aujourd'hui (rien d'autre ne met `/api/` en cache, et
+`navigateFallbackDenylist` est correct), mais a remplacer par
+`({ url }) => url.pathname.startsWith('/api/')` pour que la regle fasse ce
+qu'elle annonce. **Corrige le 2026-10-04 cote LOCAL, voir entree ci-dessous.**
+
+---
 
 **Mise a jour 2026-10-04 (meme jour, apres coup)** : une 4eme migration
 (`accounts.0002_seed_admin_user`) et un dashboard admin ont ete ajoutes
