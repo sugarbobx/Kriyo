@@ -1,0 +1,32 @@
+# Kriyo — Django API served by gunicorn, managed by systemd (no Docker).
+#
+# Install:
+#   sudo cp deploy/systemd/kriyo-backend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kriyo-backend
+#
+# Logs:    journalctl -u kriyo-backend -f
+# Restart: sudo systemctl restart kriyo-backend
+
+[Unit]
+Description=Kriyo Django API (gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+# Settings are read from backend/.env (django-environ), so no Environment= lines here.
+WorkingDirectory=/home/ubuntu/kriyo/backend
+# Bound to localhost only: nginx is the single public entry point.
+# 2 workers fits a ~1 GB VPS; raise it on a bigger machine (rule of thumb: 2 x CPU + 1).
+ExecStart=/home/ubuntu/kriyo/backend/venv/bin/gunicorn config.wsgi:application \
+    --bind 127.0.0.1:8000 --workers 2 --timeout 60 \
+    --access-logfile - --error-logfile -
+# HUP = graceful reload of the workers.
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
