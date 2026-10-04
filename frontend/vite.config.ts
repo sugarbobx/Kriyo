@@ -29,7 +29,9 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//, /^\/admin\//],
         runtimeCaching: [
           {
-            urlPattern: /^\/api\//,
+            // workbox matches a RegExp urlPattern against the full href, not
+            // just the pathname -- a function matcher is needed instead.
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
             handler: 'NetworkOnly'
           }
         ]
