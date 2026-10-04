@@ -1,10 +1,16 @@
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 
 from . import services
 from .serializers import AnswerSubmitSerializer, QuestionSerializer
+
+
+class GateAnswerRateThrottle(UserRateThrottle):
+    """Keyed by user id. Rate set in REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']['gate_answer']."""
+    scope = 'gate_answer'
 
 
 @api_view(['GET'])
@@ -26,6 +32,7 @@ def questions(request, criterion_key):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([GateAnswerRateThrottle])
 def submit_answer(request, criterion_key):
     serializer = AnswerSubmitSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)

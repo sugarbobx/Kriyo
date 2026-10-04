@@ -100,6 +100,10 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'login': '5/min',
         'signup': '5/min',
+        'gate_answer': '60/min',
+        'account_create': '30/min',
+        'trade_execute': '30/min',
+        'trade_close': '30/min',
     },
 }
 
@@ -112,3 +116,14 @@ SPECTACULAR_SETTINGS = {
 
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
+
+# Behind nginx, which sets X-Forwarded-Proto (infra/nginx/nginx.conf). Defaults
+# follow DEBUG so local/sqlite dev keeps working over plain HTTP unchanged;
+# set explicitly via env once a real domain + TLS are in front of the VPS.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=not DEBUG)
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=not DEBUG)
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=not DEBUG)
+SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
+SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0

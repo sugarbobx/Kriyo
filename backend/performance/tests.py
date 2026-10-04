@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from rest_framework.test import APITestCase
 
 from accounts.models import User
@@ -6,6 +7,7 @@ from .models import RiskProfile, Trade, TradingAccount
 
 class PerformanceApiTests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user(email='perf-test@kriyo.local', password='TestPass123!')
         self.other_user = User.objects.create_user(email='other@kriyo.local', password='TestPass123!')
         self.client.force_authenticate(user=self.user)
@@ -86,3 +88,44 @@ class PerformanceApiTests(APITestCase):
             format='json',
         )
         return TradingAccount.objects.get(id=response.data['id'])
+
+
+class PerformanceThrottleTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email='perf-throttle@kriyo.local', password='TestPass123!')
+        self.client.force_authenticate(user=self.user)
+
+    def test_account_creation_is_rate_limited_per_user(self):
+        for _ in range(30):
+            response = self.client.post(
+                '/api/performance/accounts/',
+                {'name': 'FTMO 5K', 'capital': 5000, 'payout_type': 'ON_DEMAND'},
+                format='json',
+            )
+            self.assertNotEqual(response.status_code, 429)
+
+        response = self.client.post(
+            '/api/performance/accounts/',
+            {'name': 'FTMO 5K', 'capital': 5000, 'payout_type': 'ON_DEMAND'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 429)
+
+    def test_trade_execution_has_its_own_independent_limit(self):
+        account = TradingAccount.objects.create(
+            user=self.user, name='FTMO 5K', capital=5000, payout_type='ON_DEMAND',
+            risk_profile=RiskProfile.objects.get(type='AGRESSIF'),
+        )
+        for _ in range(30):
+            self.client.post(
+                '/api/performance/trades/',
+                {'account_ids': [account.id], 'score_vr': 3, 'score_ep': 3, 'score_vp': 3},
+                format='json',
+            )
+        response = self.client.post(
+            '/api/performance/trades/',
+            {'account_ids': [account.id], 'score_vr': 3, 'score_ep': 3, 'score_vp': 3},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 429)

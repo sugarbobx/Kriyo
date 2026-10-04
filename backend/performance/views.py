@@ -1,7 +1,8 @@
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 
 from . import services
 from .models import RiskProfile, Trade, TradingAccount
@@ -14,6 +15,24 @@ from .serializers import (
 )
 
 
+class AccountCreateRateThrottle(UserRateThrottle):
+    """Keyed by user id. Rate set in REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']['account_create'].
+
+    Applies to GET too (DRF throttles per-view, not per-method) -- the rate is
+    generous enough to not affect normal listing on screen mount.
+    """
+    scope = 'account_create'
+
+
+class TradeExecuteRateThrottle(UserRateThrottle):
+    """Keyed by user id. Rate set in REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']['trade_execute'].
+
+    Applies to GET too (DRF throttles per-view, not per-method) -- the rate is
+    generous enough to not affect normal listing on screen mount.
+    """
+    scope = 'trade_execute'
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def risk_profiles(request):
@@ -22,6 +41,7 @@ def risk_profiles(request):
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([AccountCreateRateThrottle])
 def accounts(request):
     if request.method == 'GET':
         qs = TradingAccount.objects.filter(user=request.user)
@@ -35,6 +55,7 @@ def accounts(request):
 
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([TradeExecuteRateThrottle])
 def trades(request):
     if request.method == 'GET':
         qs = Trade.objects.filter(account__user=request.user)

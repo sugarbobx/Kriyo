@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from django.core.cache import cache
 from rest_framework.test import APITestCase
 
 from accounts.models import User
@@ -54,6 +55,7 @@ class EvaluateTradeClosureTests(APITestCase):
 
 class CloseTradeApiTests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user(email='tracking-test@kriyo.local', password='TestPass123!')
         self.other_user = User.objects.create_user(email='tracking-other@kriyo.local', password='TestPass123!')
         self.client.force_authenticate(user=self.user)
@@ -91,3 +93,26 @@ class CloseTradeApiTests(APITestCase):
         self.client.force_authenticate(user=self.other_user)
         response = self.client.post(f'/api/tracking/trades/{self.trade.id}/close/', {'pnl': 10}, format='json')
         self.assertEqual(response.status_code, 404)
+
+
+class CloseTradeThrottleTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email='tracking-throttle@kriyo.local', password='TestPass123!')
+        self.client.force_authenticate(user=self.user)
+        self.account = TradingAccount.objects.create(
+            user=self.user, name='Test', capital=1000, payout_type='DEUX_SEMAINES',
+            risk_profile=RiskProfile.objects.get(type='MODERE'),
+        )
+
+    def test_close_trade_is_rate_limited_per_user(self):
+        trades = [
+            Trade.objects.create(account=self.account, score_vr=3, score_ep=3, score_vp=3, score_total=9, status='EN_COURS')
+            for _ in range(31)
+        ]
+        for trade in trades[:30]:
+            response = self.client.post(f'/api/tracking/trades/{trade.id}/close/', {'pnl': 10}, format='json')
+            self.assertNotEqual(response.status_code, 429)
+
+        response = self.client.post(f'/api/tracking/trades/{trades[30].id}/close/', {'pnl': 10}, format='json')
+        self.assertEqual(response.status_code, 429)

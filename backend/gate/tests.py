@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
@@ -116,6 +117,7 @@ class MessageTierBoundaryTests(TestCase):
 
 class GateApiTests(APITestCase):
     def setUp(self):
+        cache.clear()  # each test posts up to 30 answers; must not count toward another test's throttle window
         self.user = User.objects.create_user(email='gate-test@kriyo.local', password='TestPass123!', timezone='UTC')
         self.client.force_authenticate(user=self.user)
 
@@ -192,3 +194,23 @@ class GateApiTests(APITestCase):
 
         expected = (4 / 6 + 1 + 1 + 1 + 1) * 0.20
         self.assertAlmostEqual(final.data['gate_result']['overall_score'], expected)
+
+
+class GateAnswerThrottleTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email='gate-throttle@kriyo.local', password='TestPass123!', timezone='UTC')
+        self.client.force_authenticate(user=self.user)
+        self.question_id = Criterion.objects.get(key='tension').questions.first().id
+
+    def test_submit_answer_is_rate_limited_per_user(self):
+        for _ in range(60):
+            response = self.client.post(
+                '/api/gate/criteria/tension/answers/', {'question_id': self.question_id, 'answer': True}, format='json'
+            )
+            self.assertNotEqual(response.status_code, 429)
+
+        response = self.client.post(
+            '/api/gate/criteria/tension/answers/', {'question_id': self.question_id, 'answer': True}, format='json'
+        )
+        self.assertEqual(response.status_code, 429)
