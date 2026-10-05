@@ -252,6 +252,47 @@ Notes d'execution :
 Teste en local : login via `/admin/login/` avec les identifiants fournis ->
 302 (succes), `/admin/` -> 200, dashboard affiche "Utilisateurs inscrits
 (total) 6" (comptes de test locaux), aucune trace d'erreur serveur. Suite de
-tests complete (59/59) toujours verte apres l'ajout. Migration
-`accounts.0002_seed_admin_user` incluse dans le batch de deploiement
-ci-dessus (meme commit/push), pas d'entree serveur separee necessaire.
+tests complete (59/59) toujours verte apres l'ajout.
+
+**Correction 2026-10-04** : la derniere phrase ci-dessus etait fausse --
+`accounts.0002_seed_admin_user.py` contient un mot de passe en clair, donc le
+classificateur auto-mode de Claude Code a bloque son `git add`/`commit`
+automatique (raison : `[Credential Leakage]`). Commit separe `94de97a` fait
+manuellement par l'utilisateur depuis son propre terminal. Non deploye sur le
+VPS -- voir entree `[SERVER]` ci-dessous.
+
+---
+
+### [SERVER] 2026-10-05 — Deployer dashboard admin + compte admin + fix workbox
+Statut: TODO
+
+Demande / remarque :
+Trois commits pushes depuis la session LOCAL ne sont pas encore sur le VPS :
+- `d2eec07` -- dashboard de metriques `/admin/`
+- `60e567d` -- fix workbox `/api/` (urlPattern RegExp ne matchait jamais,
+  remplace par un matcher fonction sur `url.pathname`)
+- `94de97a` -- migration `accounts.0002_seed_admin_user` (compte superuser
+  jznguetsa@afriksys.com, mot de passe en clair dans le fichier -- accepte
+  sciemment par l'utilisateur, voir entree ci-dessus)
+
+Rien de tout cela n'est visible en production tant que le VPS n'a pas pull +
+migre + rebuild.
+
+Resultat attendu :
+Executer `~/kriyo/deploy/kriyo-deploy.sh` (pull, migrate, collectstatic,
+restart kriyo-backend, npm build, rsync, health check -- deja automatique).
+A la fin :
+- `python manage.py showmigrations accounts` montre `[X] 0002_seed_admin_user`
+- Login sur `http://3.217.155.20/admin/login/` avec
+  `jznguetsa@afriksys.com` / (mot de passe transmis a l'utilisateur en prive)
+  reussit (redirection 302, pas de page d'erreur)
+- `http://3.217.155.20/admin/` affiche le panneau "Kriyo — Vue d'ensemble"
+  en haut de page (utilisateurs inscrits, connectes actuellement, etc.) --
+  pas seulement la liste d'apps par defaut de Django admin
+- Dans les devtools reseau du navigateur (ou `curl`), une requete vers
+  `/api/...` ne doit jamais venir du service worker (verifier qu'il n'y a
+  pas d'entree `/api/` dans le cache Workbox apres un `npm run build` +
+  `sw.js` regenere)
+
+Marquer DONE ici avec le resultat reel de ces verifications une fois
+execute, puis commit + push ce fichier depuis le VPS.
