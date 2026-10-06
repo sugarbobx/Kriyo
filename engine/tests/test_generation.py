@@ -249,17 +249,52 @@ def test_aucun_modele_disponible_est_signale_clairement(tmp_path):
     assert "modèle" in resultat["erreur"] or "référence" in resultat["erreur"]
 
 
-def test_par_defaut_la_date_est_celle_dhier(contexte):
-    """Corrige le bug signalé par l'utilisateur le 01/10/2026 : le classeur généré sans
-    date explicite portait la date du jour d'exécution, alors que la trésorerie traitée
-    chaque matin concerne la journée précédente."""
+def test_par_defaut_la_date_suit_le_modele_trouve(contexte):
+    """Décision du 06/10/2026 (voir rapport du même jour) : sans date explicite, le classeur
+    généré porte la date du dernier modèle trouvé dans le dossier de référence, plus un jour
+    — jamais la date du jour d'exécution. Avant ce correctif, un dossier de référence pas
+    réalimenté depuis plusieurs jours faisait générer un classeur daté d'aujourd'hui dont le
+    J-1 provenait en réalité d'un modèle vieux de plusieurs jours, sans aucun avertissement."""
     resultat = generer_classeur([], contexte["reference"], contexte["sortie"])  # pas de `jour`
 
-    attendu = date.today() - timedelta(days=1)
+    # Le modèle de la fixture `contexte` est daté du 10/09/2026 (voir `_classeur_modele`).
+    attendu = date(2026, 9, 10) + timedelta(days=1)
     assert resultat["date"] == attendu.isoformat()
     assert os.path.basename(resultat["chemin_genere"]) == (
         f"TRESORERIE JOURNALIÈRE et TDB DU  {attendu.day:02d} {attendu.month:02d} {attendu.year}.xlsx"
     )
+
+
+def test_sans_aucun_modele_la_date_par_defaut_reste_hier(tmp_path):
+    """Dossier de référence vide (aucun classeur) : repli sur la date d'hier (comportement
+    historique du 01/10/2026), faute de pouvoir faire mieux."""
+    dossier_reference = tmp_path / "reference_vide"
+    dossier_reference.mkdir()
+
+    resultat = generer_classeur([], str(dossier_reference), str(tmp_path / "sortie"))
+
+    assert resultat["ok"] is False  # aucun modèle : la génération ne peut pas aboutir
+    assert resultat.get("erreur")
+
+
+def test_chaine_automatiquement_vers_le_dossier_de_reference(contexte):
+    """Décision du 06/10/2026 : le classeur généré est aussi copié dans le dossier de
+    référence, pour que la prochaine génération reparte de lui — sans copie, rien ne
+    réalimentait ce dossier d'un jour sur l'autre (voir le rapport du 06/10/2026)."""
+    resultat = generer_classeur([], contexte["reference"], contexte["sortie"])
+
+    chemin_copie = resultat["chemin_reference_mis_a_jour"]
+    assert chemin_copie is not None
+    assert os.path.dirname(chemin_copie) == contexte["reference"]
+    assert os.path.basename(chemin_copie) == os.path.basename(resultat["chemin_genere"])
+    assert os.path.isfile(chemin_copie)
+
+    # Le classeur original (modèle du 10/09) reste présent, jamais écrasé.
+    assert len(os.listdir(contexte["reference"])) == 2
+
+    # Une seconde génération retrouve bien le classeur fraîchement chaîné comme modèle.
+    suivant = generer_classeur([], contexte["reference"], contexte["sortie"])
+    assert suivant["modele_utilise"] == chemin_copie
 
 
 def test_remplit_depots_et_engagements_et_decale_leur_j1(contexte):
@@ -436,7 +471,8 @@ def test_ecobank_access_bank_uv_valeurs_manuelles_directes(contexte):
         [], contexte["reference"], contexte["sortie"], jour=date(2026, 9, 29),
         valeurs_manuelles={
             "ecobank": 21_000_000,
-            "access_bank": 5_000_000,
+            "access_bank_akwa": 16_375_373,
+            "access_bank_marchecentral": 5_000_000,
             "uv_orange": 3_000_000,
             "uv_mtn": 1_800_000,
             "uv_maviance": 39_000_000,
@@ -446,6 +482,7 @@ def test_ecobank_access_bank_uv_valeurs_manuelles_directes(contexte):
     classeur = openpyxl.load_workbook(resultat["chemin_genere"])
     synthese = classeur["Synthèse"]
     assert synthese["C33"].value == 21_000_000
+    assert synthese["C32"].value == 16_375_373  # Access Bank : Akwa (colonne C)
     assert synthese["I32"].value == 5_000_000  # Access Bank : Marché Central (colonne I)
     assert synthese["C56"].value == 3_000_000
     assert synthese["C57"].value == 1_800_000

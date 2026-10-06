@@ -34,7 +34,7 @@ from typing import Any, Optional
 from openpyxl import load_workbook
 
 from .classification import classer_fichiers
-from .reference_treso import NOM_FEUILLE_SYNTHESE, trouver_classeur_recent
+from .reference_treso import NOM_FEUILLE_SYNTHESE, extraire_date_nom, trouver_classeur_recent
 from . import carnet
 from .regles_agences import AGENCE_COLONNE, AGENCE_LIBELLES
 from .regles_banques import BON_INCLUS_DANS_RELEVE, RELEVES_ATTENDUS, cle_releve
@@ -179,16 +179,21 @@ def _ecrire_banques(
             agences_mises_a_jour.append("akwa")
 
     # BGFI (Akwa uniquement, pas de bon de caisse — confirmé le 02/10/2026).
-    soldes_bgfi: list[int] = []
+    # Triés par numéro de compte (comme CCA-Bank par clé RIB) : sans ordre fixe, le total
+    # écrit restait juste (l'addition est commutative) mais on ne pouvait plus retrouver,
+    # en relisant un classeur plus tard, quel terme appartenait à quel compte (constaté le
+    # 05/10/2026 en construisant l'import du carnet depuis un classeur validé).
+    comptes_bgfi: list[tuple[str, int]] = []
     for f in classement["fichiers"]:
         if f["type_detecte"] != "releve_bgfi" or f.get("ligne_banque_cible") != "bgfi":
             continue
         if f["niveau"] == "bloquant" or f["solde_releve"] is None:
             fichiers_ignores.append(f["nom"])
             continue
-        soldes_bgfi.append(f["solde_releve"])
-    if soldes_bgfi:
-        _ecrire_montant(feuille, f"{colonne_akwa}{LIGNE_BGFI}", soldes_bgfi)
+        comptes_bgfi.append((f.get("numero_compte_pdf") or "", f["solde_releve"]))
+    if comptes_bgfi:
+        termes = [solde for _, solde in sorted(comptes_bgfi, key=lambda c: c[0])]
+        _ecrire_montant(feuille, f"{colonne_akwa}{LIGNE_BGFI}", termes)
         if "akwa" not in agences_mises_a_jour:
             agences_mises_a_jour.append("akwa")
 
@@ -221,12 +226,15 @@ def _ecrire_banques(
         avertissements.append(f"{LIBELLE_CHAMP_MANUEL['uba_solde_banque']} : ligne inchangée depuis la veille.")
 
     # Ecobank, Access Bank, UV : valeur manuelle directe (aucune lecture automatisée).
-    # Access Bank est rangée sous Marché Central (colonne I), comme dans le classeur
-    # (confirmé par l'utilisateur le 05/10/2026) ; les autres lignes restent sous Akwa.
+    # Access Bank a deux soldes distincts, Akwa ET Marché Central (colonne I) — constaté
+    # le 05/10/2026 en comparant un classeur généré à un classeur de référence validé par
+    # l'utilisateur : la version du 05/10/2026 (confirmée ce jour-là) qui ne gardait que
+    # Marché Central perdait silencieusement le solde d'Akwa. Les autres lignes restent sous Akwa.
     colonne_access = AGENCE_COLONNE["marchecentral"]
     for champ, ligne, colonne in (
         ("ecobank", LIGNE_ECOBANK, colonne_akwa),
-        ("access_bank", LIGNE_ACCESS_BANK, colonne_access),
+        ("access_bank_akwa", LIGNE_ACCESS_BANK, colonne_akwa),
+        ("access_bank_marchecentral", LIGNE_ACCESS_BANK, colonne_access),
         ("uv_orange", LIGNE_UV_ORANGE, colonne_akwa),
         ("uv_mtn", LIGNE_UV_MTN, colonne_akwa),
         ("uv_maviance", LIGNE_UV_MAVIANCE, colonne_akwa),
@@ -349,7 +357,8 @@ _NOMS_CARNET_MANUELS = {
     "uv_orange": "uv:orange_money",
     "uv_mtn": "uv:mtn_momo",
     "ecobank": "ecobank:akwa",
-    "access_bank": "access_bank:marche_central",
+    "access_bank_akwa": "access_bank:akwa",
+    "access_bank_marchecentral": "access_bank:marche_central",
     "uba_solde_banque": "uba:akwa",
 }
 
@@ -406,7 +415,20 @@ def generer_classeur(
     # l'utilisateur le 01/10/2026) : par défaut, le classeur porte donc la date d'hier,
     # pas celle du jour d'exécution. `jour` reste un paramètre explicite pour les tests
     # et pour un éventuel réglage manuel depuis l'interface.
-    jour = jour or (date.today() - timedelta(days=1))
+    #
+    # Décision du 06/10/2026 : « hier » se lit sur le dernier classeur réellement présent
+    # dans le dossier de référence, jamais sur l'horloge du poste. Sans ça, un dossier de
+    # référence qui n'a pas été réalimenté depuis plusieurs jours (voir chaînage automatique
+    # ci-dessous, et le rapport du 06/10/2026) faisait générer un classeur daté d'aujourd'hui
+    # dont le J-1 provenait en réalité d'un modèle vieux de plusieurs jours, sans aucun
+    # avertissement — la date du nom de fichier doit suivre la même chaîne que les chiffres.
+    if jour is None:
+        dernier_modele_connu = trouver_classeur_recent(dossier_reference)
+        jour = (
+            extraire_date_nom(dernier_modele_connu) + timedelta(days=1)
+            if dernier_modele_connu is not None
+            else date.today() - timedelta(days=1)
+        )
 
     classement = classer_fichiers(
         fichiers, dossier_reference, gestionnaires=gestionnaires, dossier_carnet=dossier_carnet, jour=jour,
@@ -536,6 +558,21 @@ def generer_classeur(
 
     classeur.save(chemin_sortie)
 
+    # Chaînage automatique (décision du 06/10/2026, voir le rapport du même jour) : le
+    # classeur du jour devient lui-même le modèle disponible pour la prochaine génération,
+    # en le copiant dans le dossier de référence (jamais en écrasant un fichier existant).
+    # Sans ça, rien ne réalimentait ce dossier d'un jour sur l'autre : des générations
+    # successives pouvaient repartir silencieusement du même modèle vieux de plusieurs
+    # jours, avec des « J-1 » faux mais jamais signalés comme tels.
+    chemin_reference_mis_a_jour = None
+    if dossier_reference and os.path.isdir(dossier_reference):
+        meme_dossier = os.path.normcase(os.path.abspath(dossier_reference)) == os.path.normcase(
+            os.path.abspath(dossier_sortie)
+        )
+        if not meme_dossier:
+            chemin_reference_mis_a_jour = _chemin_disponible(dossier_reference, os.path.basename(chemin_sortie))
+            shutil.copyfile(chemin_sortie, chemin_reference_mis_a_jour)
+
     # Carnet : on consigne les soldes réellement lus aujourd'hui (jamais ceux repris de la veille).
     if dossier_carnet:
         soldes_a_consigner = _soldes_du_jour(
@@ -551,6 +588,7 @@ def generer_classeur(
         "chemin_genere": chemin_sortie,
         "date": jour.isoformat(),
         "modele_utilise": chemin_modele,
+        "chemin_reference_mis_a_jour": chemin_reference_mis_a_jour,
         "agences_balance_mises_a_jour": [AGENCE_LIBELLES[c] for c in agences_balance_mises_a_jour],
         "agences_banques_mises_a_jour": [AGENCE_LIBELLES[c] for c in agences_banques_mises_a_jour],
         "avertissements_banques": avertissements_banques,

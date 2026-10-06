@@ -7,6 +7,7 @@ export const LIBELLE_CHAMP_MANUEL: Record<string, string> = {
   uv_maviance: "Solde Maviance (UV)",
   uba_solde_banque: "UBA — solde en banque (hors bon de caisse)",
   ecobank: "Ecobank",
-  access_bank: "Access Bank",
+  access_bank_akwa: "Access Bank — Akwa",
+  access_bank_marchecentral: "Access Bank — Marché Central",
   western_union_secours: "Western Union (relevé absent aujourd'hui)",
 };

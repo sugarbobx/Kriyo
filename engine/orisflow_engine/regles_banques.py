@@ -54,7 +54,10 @@ CHAMPS_MANUELS_TOUJOURS: tuple[str, ...] = (
     "uv_maviance",
     "uba_solde_banque",
     "ecobank",
-    "access_bank",
+    # Access Bank a deux soldes distincts, Akwa et Marché Central (constaté le 05/10/2026
+    # en comparant un classeur généré à un classeur de référence validé par l'utilisateur).
+    "access_bank_akwa",
+    "access_bank_marchecentral",
 )
 CHAMP_MANUEL_WESTERN_UNION_SECOURS = "western_union_secours"
 
@@ -65,7 +68,8 @@ LIBELLE_CHAMP_MANUEL: dict[str, str] = {
     "uv_maviance": "Solde Maviance (UV)",
     "uba_solde_banque": "UBA — solde en banque (hors bon de caisse)",
     "ecobank": "Ecobank",
-    "access_bank": "Access Bank",
+    "access_bank_akwa": "Access Bank — Akwa",
+    "access_bank_marchecentral": "Access Bank — Marché Central",
     "western_union_secours": "Western Union (relevé absent aujourd'hui)",
 }
 
