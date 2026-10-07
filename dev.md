@@ -296,3 +296,111 @@ A la fin :
 
 Marquer DONE ici avec le resultat reel de ces verifications une fois
 execute, puis commit + push ce fichier depuis le VPS.
+
+---
+
+### [LOCAL] 2026-10-05 — Audit complet + 5 phases (securite, bugs, robustesse backend/frontend, retention)
+Statut: DONE
+
+Demande / remarque :
+Audit du projet (vulnerabilites + ameliorations) via 2 agents en parallele
+(securite, qualite/architecture), puis implementation directe en 5 phases
+sans repasser par confirmation, incluant des mecaniques de retention basees
+sur la psychologie du trading (questionnaires/systemes incitant au respect
+des regles).
+
+Resultat attendu / ce qui a ete fait :
+
+**Phase 1 — Securite** :
+- `/api/schema/docs/` etait accessible anonymement (drf-spectacular
+  override le IsAuthenticated global) -> verrouille a IsAdminUser.
+- `ExecuteTradeSerializer.account_ids` n'avait pas de borne -> max_length=20.
+- `SESSION_COOKIE_AGE` explicite (2 jours, etait le defaut Django 2 semaines)
+  + `SESSION_SAVE_EVERY_REQUEST`.
+- Cache DRF throttle passe de LocMemCache (par-process, donc le vrai taux
+  effectif = taux configure x nb workers gunicorn = x2 en prod) a
+  `DatabaseCache` partage -- table creee par
+  `core.migrations.0002_create_cache_table`.
+- CSP de base ajoutee sur les routes SPA de nginx (`deploy/nginx/kriyo.conf`,
+  pas sur /api/ ni /admin/).
+- Enumeration d'email au signup, absence de reset de mot de passe et de
+  verification d'email : **non corriges** -- necessitent une infra email
+  (SMTP) qui n'existe pas du tout dans le projet ; un correctif cosmetique
+  sans cette infra aurait ete malhonnete. A traiter ensemble dans un futur
+  chantier "infra email".
+
+**Phase 2 — Bugs de correction** (ecarts avec le spec UX confirmes par
+l'audit) :
+- Le gate pouvait passer avec un critere a 0/6 si les 4 autres etaient
+  parfaits (seuil global 75% seul, pas de plancher par critere). Ajout du
+  plancher 4/6 obligatoire par critere (`gate.scoring.CRITERION_FLOOR`,
+  `gate.0005` migration d'index associee).
+- Un compte pouvait avoir plusieurs trades EN_COURS simultanes (aucune
+  contrainte). Ajout d'un garde-fou service (409 propre) + contrainte DB
+  conditionnelle (`performance.0004`, avec nettoyage des doublons existants
+  avant d'appliquer la contrainte).
+- `TradingAccount.current_balance` n'etait jamais mis a jour a la cloture
+  d'un trade (restait fige au montant de creation). Corrige dans
+  `tracking.services.close_trade`.
+
+**Phase 3 — Robustesse backend** :
+- Nouveau `core.exceptions.KriyoApiError` + `EXCEPTION_HANDLER` DRF commun --
+  supprime le pattern try/except-par-exception duplique dans gate/
+  performance/tracking `views.py`.
+- Tests manquants ajoutes : `gate.questions` (200 + 404), app `core`
+  (health + engagement, 3 tests).
+- Dashboard admin : resultat agrege mis en cache 60s (le scan des sessions
+  actives coutait de plus en plus cher avec le nombre de sessions).
+
+**Phase 4 — Robustesse frontend** :
+- Nouveau hook `useAsyncResource` -- corrige les echecs silencieux au
+  chargement initial sur Accounts/Performance/Tracking (ils affichaient
+  "aucune donnee" au lieu d'une erreur quand le fetch echouait).
+- 401 global : `api/client.ts` emet un event `kriyo:session-expired` que
+  `App.tsx` ecoute pour ramener a l'ecran de connexion, au lieu de laisser
+  l'utilisateur bloque sur un ecran qui echouera a chaque requete.
+- `formatCurrency` deduplique dans `formatters.ts`.
+- Accessibilite : labels sur tous les champs de formulaire (avant:
+  placeholder seul), modal de cloture de trade avec `role="dialog"`,
+  fermeture Echap + clic sur le fond, focus auto sur le champ PnL,
+  `--kriyo-faint` eclairci (etait ~3.3:1, sous le seuil WCAG AA 4.5:1).
+- Bannière hors-ligne globale (`useOnlineStatus`, affichee dans AppShell).
+
+**Phase 5 — Retention (psychologie du trading)** :
+- **Streak** : jours consecutifs avec Security Gate reussi, calcule cote
+  serveur (`gate.services.compute_streak`), affiche sur le Dashboard et
+  l'ecran de resultat du gate. Logique loss-aversion : retombe a 0 si le
+  jour d'avant ET aujourd'hui sont manques (pas arrondi pour "faire
+  plaisir").
+- **Feedback critere le plus faible** : moyenne par critere sur les
+  tentatives reussies des 7 derniers jours, affiche sur l'ecran de resultat
+  (`gate.services.compute_weakest_criterion`) -- technique d'auto-monitoring
+  (CBT). Necessite au moins 2 criteres avec des donnees pour eviter un
+  jugement base sur un seul point.
+- **Nudge education contextuel** : a la cloture d'un trade VERROUILLE, le
+  module de psychologie pertinent (deja ecrit, jusqu'ici jamais connecte au
+  comportement reel) s'affiche directement -- daily_drawdown -> "Casser le
+  revenge trading", max_drawdown -> "L'aversion a la perte",
+  take_profit_forced -> "Le processus plutot que le resultat".
+  (`Tracking.tsx`, mapping frontend uniquement, aucune donnee backend
+  necessaire).
+- **Progression education** : nouvelle app `education` enfin reelle (etait
+  un stub vide depuis le debut) -- modele `EducationProgress`
+  (user, module_key), endpoints GET/POST `/api/education/progress/`,
+  bouton "Marquer comme lu" par module, remonte aussi dans le dashboard
+  admin (modules lus / utilisateurs avec progression).
+
+Migrations ajoutees cette session (en plus de celles deja listees dans
+l'entree [SERVER] ci-dessus, qui restent a deployer) :
+`gate.0005_gateattempt_gate_gateat_user_id_866d9c_idx`,
+`performance.0004_trade_one_open_trade_per_account`,
+`core.0002_create_cache_table`, `education.0001_initial`.
+
+Notes d'execution :
+86/86 tests backend passent en local (56 nouveaux tests ajoutes cette
+session). `npm run build` frontend passe sans erreur TypeScript. Dashboard
+admin reteste manuellement (login 302, page 200, nouvelle section Education
+visible, aucune trace d'erreur serveur). Rien n'est committe -- en attente
+de confirmation utilisateur avant commit+push (la migration
+`performance.0004` notamment modifie un schema de contrainte, a verifier
+sur une sauvegarde VPS avant d'etre deployee comme toujours).

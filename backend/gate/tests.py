@@ -1,9 +1,10 @@
 from django.core.cache import cache
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import User
-from .models import Criterion, GateAttempt
+from .models import Criterion, CriterionResult, GateAttempt
 from .scoring import (
     calculate_criterion_score,
     calculate_overall_score,
@@ -80,6 +81,20 @@ class OverallScoreTests(TestCase):
         self.assertEqual(calculate_overall_score([(1.0, 0.0)] * 5), 0.0)
 
 
+class CriteriaFloorTests(TestCase):
+    def test_all_above_floor_passes(self):
+        from .scoring import all_criteria_above_floor
+        self.assertTrue(all_criteria_above_floor([(4 / 6, 0.20)] * 5))
+
+    def test_one_below_floor_fails(self):
+        from .scoring import all_criteria_above_floor
+        self.assertFalse(all_criteria_above_floor([(1.0, 0.20)] * 4 + [(3 / 6, 0.20)]))
+
+    def test_exactly_at_floor_passes(self):
+        from .scoring import all_criteria_above_floor
+        self.assertTrue(all_criteria_above_floor([(1.0, 0.20)] * 4 + [(4 / 6, 0.20)]))
+
+
 class MessageTierBoundaryTests(TestCase):
     def test_74_9_percent_is_locked(self):
         self.assertEqual(get_message_tier(0.749), 'locked')
@@ -136,6 +151,17 @@ class GateApiTests(APITestCase):
                 format='json',
             )
         return last_response
+
+    def test_questions_lists_the_6_questions_in_order(self):
+        response = self.client.get('/api/gate/criteria/tension/questions/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 6)
+        self.assertEqual([q['order'] for q in response.data], [1, 2, 3, 4, 5, 6])
+        self.assertIn('text', response.data[0])
+
+    def test_questions_unknown_criterion_404(self):
+        response = self.client.get('/api/gate/criteria/not-a-real-key/questions/')
+        self.assertEqual(response.status_code, 404)
 
     def test_current_creates_attempt_on_first_visit(self):
         response = self.client.get('/api/gate/current/')
@@ -201,6 +227,24 @@ class GateApiTests(APITestCase):
 
         expected = (4 / 6 + 1 + 1 + 1 + 1) * 0.20
         self.assertAlmostEqual(final.data['gate_result']['overall_score'], expected)
+
+    def test_one_criterion_below_floor_locks_even_though_overall_would_pass(self):
+        # 3/6 on tension (below the 4/6 floor), perfect on the rest ->
+        # overall = (0.5 + 1 + 1 + 1 + 1) * 0.20 = 0.90, well above the 75%
+        # pass threshold, but the floor rule must still lock the gate.
+        self._answer_criterion('tension', [True, True, True, False, False, False])
+        self._answer_criterion('screen_time', [True] * 6)
+        self._answer_criterion('phone', [True] * 6)
+        self._answer_criterion('macro', [True] * 6)
+        final = self._answer_criterion('alignment', [True] * 6)
+
+        self.assertTrue(final.data['gate_complete'])
+        self.assertEqual(final.data['gate_result']['status'], 'locked')
+        self.assertAlmostEqual(final.data['gate_result']['overall_score'], 0.90)
+
+        attempt = GateAttempt.objects.get(user=self.user)
+        self.assertEqual(attempt.status, 'locked')
+        self.assertIsNotNone(attempt.locked_until)
 
 
 class CriterionReviewTests(APITestCase):
@@ -268,6 +312,96 @@ class ReversePhrasedQuestionTests(APITestCase):
                 f'/api/gate/criteria/tension/answers/', {'question_id': question.id, 'answer': raw_answer}, format='json'
             )
         self.assertAlmostEqual(last_response.data['criterion']['score'], 1.0)
+
+
+class StreakTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email='gate-streak@kriyo.local', password='TestPass123!', timezone='UTC')
+        self.client.force_authenticate(user=self.user)
+
+    def _pass_gate_days_ago(self, days_ago):
+        return GateAttempt.objects.create(
+            user=self.user,
+            status='passed',
+            overall_score=1.0,
+            completed_at=timezone.now() - timezone.timedelta(days=days_ago),
+        )
+
+    def test_no_history_is_zero(self):
+        from gate.services import compute_streak
+        self.assertEqual(compute_streak(self.user), 0)
+
+    def test_three_consecutive_days_counts_three(self):
+        from gate.services import compute_streak
+        self._pass_gate_days_ago(0)
+        self._pass_gate_days_ago(1)
+        self._pass_gate_days_ago(2)
+        self.assertEqual(compute_streak(self.user), 3)
+
+    def test_gap_breaks_the_streak_count(self):
+        from gate.services import compute_streak
+        self._pass_gate_days_ago(0)
+        self._pass_gate_days_ago(1)
+        self._pass_gate_days_ago(3)  # gap at day -2
+        self.assertEqual(compute_streak(self.user), 2)
+
+    def test_missed_today_and_yesterday_resets_to_zero(self):
+        from gate.services import compute_streak
+        self._pass_gate_days_ago(5)
+        self._pass_gate_days_ago(6)
+        self.assertEqual(compute_streak(self.user), 0)
+
+    def test_passed_yesterday_not_yet_today_keeps_streak_alive(self):
+        from gate.services import compute_streak
+        self._pass_gate_days_ago(1)
+        self._pass_gate_days_ago(2)
+        self.assertEqual(compute_streak(self.user), 2)
+
+
+class WeakestCriterionTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email='gate-weakest@kriyo.local', password='TestPass123!', timezone='UTC')
+
+    def _create_passed_attempt_with_scores(self, scores_by_key, days_ago=0):
+        """scores_by_key: {criterion_key: score}. Builds a 'passed' GateAttempt
+        with one finalized CriterionResult per entry, directly via the ORM --
+        the normal API flow only allows one pass per local day, which would
+        make a two-attempt test impossible to set up through the endpoints."""
+        completed_at = timezone.now() - timezone.timedelta(days=days_ago)
+        attempt = GateAttempt.objects.create(
+            user=self.user, status='passed', overall_score=1.0, completed_at=completed_at,
+        )
+        for key, score in scores_by_key.items():
+            CriterionResult.objects.create(
+                gate_attempt=attempt, criterion=Criterion.objects.get(key=key),
+                score=score, validated=score >= 0.80, completed_at=completed_at,
+            )
+        return attempt
+
+    def test_none_with_data_on_only_one_criterion(self):
+        from gate.services import compute_weakest_criterion
+        self._create_passed_attempt_with_scores({'tension': 5 / 6})
+        self.assertIsNone(compute_weakest_criterion(self.user))
+
+    def test_identifies_the_lowest_average_criterion(self):
+        from gate.services import compute_weakest_criterion
+        # Two passes, tension always weaker (5/6) than everything else (6/6).
+        self._create_passed_attempt_with_scores({'tension': 5 / 6, 'screen_time': 1.0}, days_ago=1)
+        self._create_passed_attempt_with_scores({'tension': 5 / 6, 'screen_time': 1.0}, days_ago=0)
+        result = compute_weakest_criterion(self.user)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['key'], 'tension')
+
+    def test_ignores_attempts_older_than_the_window(self):
+        from gate.services import compute_weakest_criterion
+        self._create_passed_attempt_with_scores({'tension': 0.0, 'screen_time': 1.0}, days_ago=30)
+        self._create_passed_attempt_with_scores({'tension': 1.0, 'screen_time': 5 / 6}, days_ago=1)
+        result = compute_weakest_criterion(self.user, days=7)
+        # Only the recent attempt counts -> screen_time (5/6) is weaker than
+        # tension (1.0), not the 30-day-old 0.0 on tension.
+        self.assertEqual(result['key'], 'screen_time')
 
 
 class GateAnswerThrottleTests(APITestCase):

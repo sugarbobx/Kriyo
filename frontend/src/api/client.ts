@@ -31,6 +31,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
+    if (response.status === 401) {
+      // Session expired/missing mid-use -- App.tsx listens for this to drop
+      // back to the login screen instead of leaving the user stuck on a
+      // screen that will fail every request. Harmless no-op if already
+      // logged out (e.g. the initial api.me() check, or a failed login).
+      window.dispatchEvent(new CustomEvent('kriyo:session-expired'));
+    }
     if (data && typeof data === 'object' && 'detail' in data) {
       throw new Error(String(data.detail));
     }
@@ -72,12 +79,19 @@ export interface CriterionState {
   score: number | null;
 }
 
+export interface WeakestCriterion {
+  key: string;
+  label: string;
+  avg_score: number;
+}
+
 export interface GateState {
   status: GateStatus;
   locked_until: string | null;
   overall_score: number | null;
   message_tier: MessageTier | null;
   criteria: CriterionState[];
+  streak: number;
 }
 
 export interface GateQuestion {
@@ -102,6 +116,8 @@ export interface AnswerResult {
     overall_score: number;
     message_tier: MessageTier;
     locked_until?: string;
+    streak?: number;
+    weakest_criterion?: WeakestCriterion | null;
   } | null;
 }
 
@@ -196,5 +212,10 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ pnl })
       })
+  },
+  education: {
+    progress: () => request<{ read_module_keys: string[] }>('/education/progress/'),
+    markRead: (moduleKey: string) =>
+      request<void>('/education/progress/', { method: 'POST', body: JSON.stringify({ module_key: moduleKey }) })
   }
 };

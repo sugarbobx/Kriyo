@@ -15,7 +15,9 @@ const fr = dict({
     loading: 'Chargement...',
     logout: 'Se déconnecter',
     yes: 'Oui',
-    no: 'Non'
+    no: 'Non',
+    offlineBanner: 'Hors ligne — vérifie ta connexion. Les actions ne seront pas enregistrées tant que la connexion n’est pas revenue.',
+    retry: 'Réessayer'
   },
   auth: {
     apiHealth: 'API',
@@ -51,7 +53,10 @@ const fr = dict({
     open: 'Open',
     comingSoon: 'Bientôt disponible',
     tracking: 'Suivi des positions',
-    education: 'Éducation'
+    education: 'Éducation',
+    streakLabel: 'Série en cours',
+    streakDays: '{n} jour(s)',
+    streakZero: 'Complète le Security Gate aujourd’hui pour démarrer une série.'
   },
   gate: {
     title: 'Sas de Sécurité',
@@ -64,6 +69,8 @@ const fr = dict({
     tech: 'Analyse Technique',
     reviewTitle: 'Récapitulatif',
     reviewSubtitle: 'Questions et réponses déjà enregistrées pour ce critère.',
+    weakestCriterionLabel: 'Point le plus faible (7 derniers jours)',
+    streakResultLabel: 'Série',
     categories: {
       tension: 'Tension',
       screen_time: 'Screen time',
@@ -221,6 +228,8 @@ const fr = dict({
       ['Confluence', 'Accumulation de signaux qui renforce la qualité du setup.'],
       ['Invalidation', 'Niveau qui invalide le scénario et impose la sortie.']
     ],
+    markRead: 'Marquer comme lu',
+    alreadyRead: 'Lu ✓',
     programTitle: 'Programme — Psychologie du Trading',
     programIntro: 'Cinq modules courts, construits à partir des pratiques les plus citées chez les traders prop firm et les formateurs en psychologie du trading, pour muscler la discipline entre deux sessions.',
     modules: [
@@ -281,7 +290,9 @@ const en = dict({
     loading: 'Loading...',
     logout: 'Log out',
     yes: 'Yes',
-    no: 'No'
+    no: 'No',
+    offlineBanner: 'Offline — check your connection. Actions won’t be saved until it’s back.',
+    retry: 'Retry'
   },
   auth: {
     apiHealth: 'API',
@@ -317,7 +328,10 @@ const en = dict({
     open: 'Open',
     comingSoon: 'Coming soon',
     tracking: 'Position tracking',
-    education: 'Education'
+    education: 'Education',
+    streakLabel: 'Current streak',
+    streakDays: '{n} day(s)',
+    streakZero: 'Complete the Security Gate today to start a streak.'
   },
   gate: {
     title: 'Security Gate',
@@ -330,6 +344,8 @@ const en = dict({
     tech: 'Technical Analysis',
     reviewTitle: 'Review',
     reviewSubtitle: 'Questions and answers already recorded for this criterion.',
+    weakestCriterionLabel: 'Weakest area (last 7 days)',
+    streakResultLabel: 'Streak',
     categories: {
       tension: 'Tension',
       screen_time: 'Screen time',
@@ -487,6 +503,8 @@ const en = dict({
       ['Confluence', 'Accumulation of signals that strengthens the quality of the setup.'],
       ['Invalidation', 'Level that invalidates the scenario and forces the exit.']
     ],
+    markRead: 'Mark as read',
+    alreadyRead: 'Read ✓',
     programTitle: 'Program — Trading Psychology',
     programIntro: 'Five short modules, built from the most cited practices among prop firm traders and trading psychology coaches, to strengthen discipline between sessions.',
     modules: [

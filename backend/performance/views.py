@@ -65,16 +65,12 @@ def trades(request):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
 
-    try:
-        created = services.execute_trade(
-            request.user,
-            data['account_ids'],
-            data['score_vr'],
-            data['score_ep'],
-            data['score_vp'],
-            data['score_total'],
-        )
-    except services.AccountNotOwnedError:
-        return Response({'detail': 'One or more accounts do not belong to you.'}, status=status.HTTP_403_FORBIDDEN)
-
+    created = services.execute_trade(
+        request.user,
+        data['account_ids'],
+        data['score_vr'],
+        data['score_ep'],
+        data['score_vp'],
+        data['score_total'],
+    )
     return Response(TradeSerializer(created, many=True).data, status=status.HTTP_201_CREATED)

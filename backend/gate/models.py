@@ -53,6 +53,7 @@ class GateAttempt(models.Model):
 
     class Meta:
         ordering = ['-started_at']
+        indexes = [models.Index(fields=['user', '-started_at'])]
 
     def __str__(self):
         return f'{self.user_id} · {self.status} · {self.started_at:%Y-%m-%d %H:%M}'

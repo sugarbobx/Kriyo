@@ -2,20 +2,25 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.utils import timezone
 
+from core.exceptions import KriyoApiError
+
 from . import scoring
 from .models import Criterion, CriterionResult, GateAttempt, Question
 
 
-class GateLockedError(Exception):
-    pass
+class GateLockedError(KriyoApiError):
+    status_code = 409
+    detail = 'Gate is locked or already completed.'
 
 
-class InvalidCriterionError(Exception):
-    pass
+class InvalidCriterionError(KriyoApiError):
+    status_code = 404
+    detail = 'Unknown criterion.'
 
 
-class InvalidQuestionError(Exception):
-    pass
+class InvalidQuestionError(KriyoApiError):
+    status_code = 404
+    detail = 'Unknown question for this criterion.'
 
 
 def _user_tz(user):
@@ -69,8 +74,59 @@ def _criteria_summary(attempt):
     return summary
 
 
+def compute_streak(user):
+    """Consecutive local-calendar days with a passed attempt, counted back
+    from the most recent one. 0 if the user has never passed, or if their
+    last pass was before yesterday (streak broken) -- loss-aversion framing:
+    showing 0 the day after a miss is the point, not a bug to round away."""
+    passed_dates = sorted(
+        {_local_date(dt, user) for dt in GateAttempt.objects.filter(user=user, status='passed').values_list('completed_at', flat=True) if dt},
+        reverse=True,
+    )
+    if not passed_dates:
+        return 0
+
+    today = _local_date(timezone.now(), user)
+    if passed_dates[0] not in (today, today - timezone.timedelta(days=1)):
+        return 0
+
+    streak = 1
+    for i in range(1, len(passed_dates)):
+        if passed_dates[i - 1] - passed_dates[i] == timezone.timedelta(days=1):
+            streak += 1
+        else:
+            break
+    return streak
+
+
+def compute_weakest_criterion(user, days=7):
+    """Average score per criterion across passed attempts in the last `days`
+    days, lowest average returned. None unless there's data on at least 2
+    different criteria to compare -- one data point isn't a pattern worth
+    telling someone about (self-monitoring feedback should feel
+    evidence-based, not random)."""
+    from django.db.models import Avg
+
+    since = timezone.now() - timezone.timedelta(days=days)
+    results = (
+        CriterionResult.objects.filter(
+            gate_attempt__user=user, gate_attempt__status='passed', gate_attempt__completed_at__gte=since,
+            score__isnull=False,
+        )
+        .values('criterion__key', 'criterion__label')
+        .annotate(avg_score=Avg('score'))
+    )
+    results = list(results)
+    if len(results) < 2:
+        return None
+
+    weakest = min(results, key=lambda r: r['avg_score'])
+    return {'key': weakest['criterion__key'], 'label': weakest['criterion__label'], 'avg_score': weakest['avg_score']}
+
+
 def build_gate_state(attempt):
     now = timezone.now()
+    streak = compute_streak(attempt.user)
 
     if attempt.status == 'locked' and attempt.locked_until and now < attempt.locked_until:
         return {
@@ -79,6 +135,7 @@ def build_gate_state(attempt):
             'overall_score': None,
             'message_tier': 'locked',
             'criteria': [],
+            'streak': streak,
         }
 
     if attempt.status == 'passed':
@@ -88,6 +145,7 @@ def build_gate_state(attempt):
             'overall_score': attempt.overall_score,
             'message_tier': scoring.get_message_tier(attempt.overall_score),
             'criteria': _criteria_summary(attempt),
+            'streak': streak,
         }
 
     return {
@@ -96,6 +154,7 @@ def build_gate_state(attempt):
         'overall_score': None,
         'message_tier': None,
         'criteria': _criteria_summary(attempt),
+        'streak': streak,
     }
 
 
@@ -107,8 +166,9 @@ def get_questions(criterion_key):
     return criterion.questions.all()
 
 
-class CriterionNotAnsweredError(Exception):
-    pass
+class CriterionNotAnsweredError(KriyoApiError):
+    status_code = 409
+    detail = 'This criterion has not been completed yet.'
 
 
 def get_criterion_review(user, criterion_key):
@@ -188,13 +248,15 @@ def record_answer(user, criterion_key, question_id, answer_value):
     attempt.overall_score = overall_score
     attempt.completed_at = timezone.now()
 
-    if scoring.gate_passed(overall_score):
+    if scoring.gate_passed(overall_score) and scoring.all_criteria_above_floor(scores):
         attempt.status = 'passed'
         attempt.save(update_fields=['overall_score', 'completed_at', 'status'])
         gate_result = {
             'status': 'passed',
             'overall_score': overall_score,
             'message_tier': scoring.get_message_tier(overall_score),
+            'streak': compute_streak(user),
+            'weakest_criterion': compute_weakest_criterion(user),
         }
     else:
         attempt.status = 'locked'
@@ -206,6 +268,7 @@ def record_answer(user, criterion_key, question_id, answer_value):
             'overall_score': overall_score,
             'message_tier': 'locked',
             'locked_until': attempt.locked_until,
+            'weakest_criterion': compute_weakest_criterion(user),
         }
 
     result['gate_complete'] = True

@@ -8,7 +8,9 @@
   --kriyo-border-soft: #1a212c;
   --kriyo-text: #e7ecf3;
   --kriyo-dim: #93a0b2;
-  --kriyo-faint: #5a6577;
+  /* #5a6577 on --kriyo-bg was ~3.3:1, below WCAG AA's 4.5:1 for the
+     placeholder text it's used on -- lightened to clear that bar. */
+  --kriyo-faint: #7c8798;
   --kriyo-amber: #e8a33d;
   --kriyo-cyan: #4fd1c5;
   --kriyo-coral: #ff6f61;
@@ -334,5 +336,26 @@ a {
   margin: 0.5rem 0 0;
   font-size: 0.85rem;
   line-height: 1.5;
+  color: var(--kriyo-dim);
+}
+
+.kriyo-offline-banner {
+  border-radius: 0.75rem;
+  border: 1px solid rgba(232, 163, 61, 0.35);
+  background: rgba(232, 163, 61, 0.1);
+  color: var(--kriyo-amber);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.kriyo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.kriyo-field-label {
+  font-size: 0.75rem;
   color: var(--kriyo-dim);
 }

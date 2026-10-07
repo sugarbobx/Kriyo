@@ -1,4 +1,3 @@
-from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -23,22 +22,14 @@ def current(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def questions(request, criterion_key):
-    try:
-        qs = services.get_questions(criterion_key)
-    except services.InvalidCriterionError:
-        return Response({'detail': 'Unknown criterion.'}, status=status.HTTP_404_NOT_FOUND)
+    qs = services.get_questions(criterion_key)
     return Response(QuestionSerializer(qs, many=True).data)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def criterion_review(request, criterion_key):
-    try:
-        answers = services.get_criterion_review(request.user, criterion_key)
-    except services.InvalidCriterionError:
-        return Response({'detail': 'Unknown criterion.'}, status=status.HTTP_404_NOT_FOUND)
-    except services.CriterionNotAnsweredError:
-        return Response({'detail': 'This criterion has not been completed yet.'}, status=status.HTTP_409_CONFLICT)
+    answers = services.get_criterion_review(request.user, criterion_key)
     return Response(answers)
 
 
@@ -49,18 +40,10 @@ def submit_answer(request, criterion_key):
     serializer = AnswerSubmitSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    try:
-        result = services.record_answer(
-            request.user,
-            criterion_key,
-            serializer.validated_data['question_id'],
-            serializer.validated_data['answer'],
-        )
-    except services.GateLockedError:
-        return Response({'detail': 'Gate is locked or already completed.'}, status=status.HTTP_409_CONFLICT)
-    except services.InvalidCriterionError:
-        return Response({'detail': 'Unknown criterion.'}, status=status.HTTP_404_NOT_FOUND)
-    except services.InvalidQuestionError:
-        return Response({'detail': 'Unknown question for this criterion.'}, status=status.HTTP_404_NOT_FOUND)
-
+    result = services.record_answer(
+        request.user,
+        criterion_key,
+        serializer.validated_data['question_id'],
+        serializer.validated_data['answer'],
+    )
     return Response(result)

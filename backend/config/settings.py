@@ -97,6 +97,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'core.exceptions.kriyo_exception_handler',
     'DEFAULT_THROTTLE_RATES': {
         'login': '5/min',
         'signup': '5/min',
@@ -104,6 +105,7 @@ REST_FRAMEWORK = {
         'account_create': '30/min',
         'trade_execute': '30/min',
         'trade_close': '30/min',
+        'education_progress': '60/min',
     },
 }
 
@@ -112,10 +114,30 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Session-authenticated API backing the Kriyo React frontend.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    # Without this, drf-spectacular defaults SERVE_PERMISSIONS to AllowAny,
+    # which overrides the project-wide IsAuthenticated default and leaves a
+    # full interactive API map open to anyone.
+    'SERVE_PERMISSIONS': ['rest_framework.permissions.IsAdminUser'],
 }
 
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
+# Default is 2 weeks with no activity-based renewal, too long for a trading
+# app session. Re-authenticate every 2 days; stay logged in across requests
+# within that window (not just until browser close).
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 2
+SESSION_SAVE_EVERY_REQUEST = True
+
+# Shared across gunicorn workers (unlike the default LocMemCache, which is
+# per-process) -- without this, DRF throttle counters reset per worker and
+# the effective rate limit is (configured rate) x (worker count). Table
+# created by core.migrations.0002_create_cache_table.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'django_cache',
+    },
+}
 
 # Behind nginx, which sets X-Forwarded-Proto (deploy/nginx/kriyo.conf). Defaults
 # follow DEBUG so local/sqlite dev keeps working over plain HTTP unchanged;

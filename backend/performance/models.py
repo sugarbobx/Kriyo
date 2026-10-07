@@ -69,6 +69,13 @@ class Trade(models.Model):
 
     class Meta:
         ordering = ['-opened_at']
+        constraints = [
+            # Service-level check in performance.services.execute_trade is the
+            # primary guard (gives a clean 409); this is the DB-level backstop.
+            models.UniqueConstraint(
+                fields=['account'], condition=models.Q(status='EN_COURS'), name='one_open_trade_per_account',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.account_id} · {self.score_total}/9 · {self.status}'

@@ -36,6 +36,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    function onSessionExpired() {
+      sessionStorage.removeItem(ENGAGEMENT_KEY);
+      setEngaged(false);
+      setRouteReady(false);
+      setView('dashboard');
+      setUser(null);
+    }
+    window.addEventListener('kriyo:session-expired', onSessionExpired);
+    return () => window.removeEventListener('kriyo:session-expired', onSessionExpired);
+  }, []);
+
+  useEffect(() => {
     if (!user || !engaged || routeReady) return;
     api.gate
       .current()
@@ -163,23 +175,31 @@ export default function App() {
       </div>
 
       <form onSubmit={handleSubmit} className="kriyo-stack">
-        <input
-          className="kriyo-input"
-          type="email"
-          placeholder={dict.auth.email}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          className="kriyo-input"
-          type="password"
-          placeholder={dict.auth.password}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-          required
-        />
+        <div className="kriyo-field">
+          <label className="kriyo-field-label" htmlFor="auth-email">{dict.auth.email}</label>
+          <input
+            id="auth-email"
+            className="kriyo-input"
+            type="email"
+            placeholder={dict.auth.email}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
+        </div>
+        <div className="kriyo-field">
+          <label className="kriyo-field-label" htmlFor="auth-password">{dict.auth.password}</label>
+          <input
+            id="auth-password"
+            className="kriyo-input"
+            type="password"
+            placeholder={dict.auth.password}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+            required
+          />
+        </div>
         <button className="kriyo-btn kriyo-btn--primary" type="submit" disabled={submitting}>
           {submitting ? dict.auth.pleaseWait : mode === 'login' ? dict.auth.login : dict.auth.signup}
         </button>

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
-import { api, type TradingAccount } from './api/client';
+import { useMemo, useState } from 'react';
+import { api } from './api/client';
 import AppShell from './AppShell';
 import { useLanguage } from './i18n/context';
 import { interpolate } from './i18n/translations';
+import { useAsyncResource } from './hooks/useAsyncResource';
 
 const questionIds = [
   'vr-structure', 'vr-liquidity', 'vr-trend',
@@ -29,11 +30,15 @@ const groups = ['VR', 'EP', 'VP'] as const;
 
 export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts: () => void; onBack: () => void }) {
   const { dict } = useLanguage();
-  const [accounts, setAccounts] = useState<TradingAccount[]>([]);
+  const { data: accounts, status: loadStatus, error: loadError, reload } = useAsyncResource(
+    () => api.performance.accounts(),
+    []
+  );
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [answers, setAnswers] = useState<Answers>(defaultAnswers);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'saving' | 'error'>('loading');
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [messageIsError, setMessageIsError] = useState(false);
   const [groupIndex, setGroupIndex] = useState(0);
 
   const vr = useMemo(() => groupScore(answers, 'VR'), [answers]);
@@ -41,18 +46,6 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
   const vp = useMemo(() => groupScore(answers, 'VP'), [answers]);
   const total = vr + ep + vp;
   const canExecute = total === 9 && selectedIds.length > 0;
-
-  useEffect(() => {
-    api.performance
-      .accounts()
-      .then((data) => {
-        setAccounts(data);
-        setStatus('ready');
-        setMessage(data.length > 0 ? '' : dict.performance.noAccountsMsg);
-      })
-      .catch(() => setStatus('error'));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   function toggleAccount(id: number) {
     setSelectedIds((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
@@ -63,18 +56,20 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
   }
 
   async function executeTrade() {
-    if (!canExecute || status === 'saving') return;
-    setStatus('saving');
+    if (!canExecute || saving) return;
+    setSaving(true);
     setMessage(dict.performance.executingButton);
+    setMessageIsError(false);
     try {
       await api.performance.executeTrade(selectedIds, vr, ep, vp);
       setAnswers(defaultAnswers);
       setGroupIndex(0);
-      setStatus('ready');
       setMessage(dict.performance.executedMsg);
     } catch (err) {
-      setStatus('error');
       setMessage(err instanceof Error ? err.message : dict.performance.errorMsg);
+      setMessageIsError(true);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -89,27 +84,37 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
             {dict.performance.manageAccounts}
           </button>
         </div>
-        {accounts.length === 0 ? (
+        {loadStatus === 'loading' ? <p className="kriyo-dim">{dict.common.loading}</p> : null}
+        {loadStatus === 'error' ? (
+          <div className="kriyo-stack">
+            <p className="kriyo-error">{loadError}</p>
+            <button className="kriyo-btn kriyo-btn--secondary" onClick={reload}>
+              {dict.common.retry}
+            </button>
+          </div>
+        ) : null}
+        {loadStatus === 'ready' && accounts && accounts.length === 0 ? (
           <p className="kriyo-dim">{dict.performance.noAccounts}</p>
-        ) : (
-          accounts.map((account) => {
-            const selected = selectedIds.includes(account.id);
-            return (
-              <button
-                key={account.id}
-                type="button"
-                className="kriyo-criterion-row"
-                data-state={selected ? 'validated' : undefined}
-                onClick={() => toggleAccount(account.id)}
-              >
-                <p style={{ margin: 0 }}>{account.name}</p>
-                <span className={`kriyo-badge ${selected ? 'kriyo-badge--success' : ''}`}>
-                  {selected ? dict.performance.selected : dict.performance.activate}
-                </span>
-              </button>
-            );
-          })
-        )}
+        ) : null}
+        {loadStatus === 'ready' && accounts
+          ? accounts.map((account) => {
+              const selected = selectedIds.includes(account.id);
+              return (
+                <button
+                  key={account.id}
+                  type="button"
+                  className="kriyo-criterion-row"
+                  data-state={selected ? 'validated' : undefined}
+                  onClick={() => toggleAccount(account.id)}
+                >
+                  <p style={{ margin: 0 }}>{account.name}</p>
+                  <span className={`kriyo-badge ${selected ? 'kriyo-badge--success' : ''}`}>
+                    {selected ? dict.performance.selected : dict.performance.activate}
+                  </span>
+                </button>
+              );
+            })
+          : null}
       </div>
 
       <div>
@@ -179,10 +184,10 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
         );
       })()}
 
-      <button className="kriyo-btn kriyo-btn--primary" disabled={!canExecute || status === 'saving'} onClick={executeTrade}>
-        {status === 'saving' ? dict.performance.executingButton : canExecute ? dict.performance.executeButton : dict.performance.incompleteButton}
+      <button className="kriyo-btn kriyo-btn--primary" disabled={!canExecute || saving} onClick={executeTrade}>
+        {saving ? dict.performance.executingButton : canExecute ? dict.performance.executeButton : dict.performance.incompleteButton}
       </button>
-      {message ? <p className={status === 'error' ? 'kriyo-error' : 'kriyo-dim'}>{message}</p> : null}
+      {message ? <p className={messageIsError ? 'kriyo-error' : 'kriyo-dim'}>{message}</p> : null}
 
       <button className="kriyo-btn kriyo-btn--secondary" onClick={onBack}>
         {dict.common.back}

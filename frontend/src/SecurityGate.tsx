@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { api, type CriterionState, type GateQuestion, type GateReviewItem, type GateState, type MessageTier } from './api/client';
+import { api, type CriterionState, type GateQuestion, type GateReviewItem, type GateState, type MessageTier, type WeakestCriterion } from './api/client';
 import { formatCountdown } from './time';
 import AppShell from './AppShell';
 import { useLanguage } from './i18n/context';
+import { interpolate } from './i18n/translations';
 
 type Screen = 'loading' | 'locked' | 'list' | 'quiz' | 'result' | 'review';
 type CriterionKey = 'tension' | 'screen_time' | 'phone' | 'macro' | 'alignment';
@@ -10,6 +11,8 @@ type CriterionKey = 'tension' | 'screen_time' | 'phone' | 'macro' | 'alignment';
 interface ResultData {
   tier: MessageTier;
   overallScore: number;
+  streak?: number;
+  weakestCriterion?: WeakestCriterion | null;
 }
 
 export default function SecurityGate({ onDone }: { onDone: () => void }) {
@@ -104,7 +107,12 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
       }
 
       if (response.gate_complete && response.gate_result) {
-        setResult({ tier: response.gate_result.message_tier, overallScore: response.gate_result.overall_score });
+        setResult({
+          tier: response.gate_result.message_tier,
+          overallScore: response.gate_result.overall_score,
+          streak: response.gate_result.streak,
+          weakestCriterion: response.gate_result.weakest_criterion,
+        });
         setScreen('result');
         return;
       }
@@ -148,6 +156,21 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
           <p className="kriyo-result-title">{copy.title}</p>
           <p className="kriyo-result-body">{copy.body}</p>
         </div>
+        {result.streak != null && result.streak > 0 ? (
+          <div className="kriyo-palier" style={{ borderColor: 'rgba(232,163,61,0.35)' }}>
+            <p className="kriyo-palier-eyebrow" style={{ color: 'var(--kriyo-amber)' }}>{dict.gate.streakResultLabel}</p>
+            <p className="kriyo-palier-title">🔥 {interpolate(dict.dashboard.streakDays, { n: String(result.streak) })}</p>
+          </div>
+        ) : null}
+        {result.weakestCriterion ? (
+          <div className="kriyo-palier">
+            <p className="kriyo-palier-eyebrow">{dict.gate.weakestCriterionLabel}</p>
+            <p className="kriyo-palier-title">
+              {dict.gate.categories[result.weakestCriterion.key as CriterionKey] ?? result.weakestCriterion.label}
+            </p>
+            <p className="kriyo-palier-note">{Math.round(result.weakestCriterion.avg_score * 100)}%</p>
+          </div>
+        ) : null}
         <button className="kriyo-btn kriyo-btn--primary" onClick={onDone}>
           {dict.gate.continueLabel}
         </button>

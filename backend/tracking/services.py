@@ -1,3 +1,6 @@
+from core.exceptions import KriyoApiError
+
+
 def _pct(capital, percent):
     return None if percent is None else capital * (percent / 100)
 
@@ -23,12 +26,14 @@ def evaluate_trade_closure(capital, risk_profile, pnl):
     return {'status': 'CLOTURE', 'reason_key': 'logged', 'amount': pnl}
 
 
-class TradeNotFoundError(Exception):
-    pass
+class TradeNotFoundError(KriyoApiError):
+    status_code = 404
+    detail = 'Trade introuvable.'
 
 
-class TradeAlreadyClosedError(Exception):
-    pass
+class TradeAlreadyClosedError(KriyoApiError):
+    status_code = 409
+    detail = 'Ce trade est déjà clôturé.'
 
 
 def close_trade(user, trade_id, pnl):
@@ -49,4 +54,9 @@ def close_trade(user, trade_id, pnl):
     trade.status = outcome['status']
     trade.closed_at = timezone.now()
     trade.save(update_fields=['pnl', 'status', 'closed_at'])
+
+    account = trade.account
+    account.current_balance = account.current_balance + pnl
+    account.save(update_fields=['current_balance'])
+
     return trade, outcome

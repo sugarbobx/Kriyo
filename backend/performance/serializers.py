@@ -36,7 +36,7 @@ class TradeSerializer(serializers.ModelSerializer):
 
 
 class ExecuteTradeSerializer(serializers.Serializer):
-    account_ids = serializers.ListField(child=serializers.IntegerField(), min_length=1)
+    account_ids = serializers.ListField(child=serializers.IntegerField(), min_length=1, max_length=20)
     score_vr = serializers.IntegerField(min_value=0, max_value=3)
     score_ep = serializers.IntegerField(min_value=0, max_value=3)
     score_vp = serializers.IntegerField(min_value=0, max_value=3)

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, type GateState, type User } from './api/client';
 import AppShell from './AppShell';
 import { useLanguage } from './i18n/context';
+import { interpolate } from './i18n/translations';
 
 export default function Dashboard({
   user,
@@ -40,6 +41,18 @@ export default function Dashboard({
       <p className="kriyo-dim">
         {dict.dashboard.connectedAs} <strong style={{ color: 'var(--kriyo-text)' }}>{user.email}</strong>
       </p>
+
+      {gate ? (
+        <div className="kriyo-palier" style={gate.streak > 0 ? { borderColor: 'rgba(232,163,61,0.35)' } : undefined}>
+          <p className="kriyo-palier-eyebrow" style={gate.streak > 0 ? { color: 'var(--kriyo-amber)' } : undefined}>
+            {dict.dashboard.streakLabel}
+          </p>
+          <p className="kriyo-palier-title">
+            {gate.streak > 0 ? `🔥 ${interpolate(dict.dashboard.streakDays, { n: String(gate.streak) })}` : dict.dashboard.streakZero}
+          </p>
+        </div>
+      ) : null}
+
       <div className="kriyo-stack">
         <button
           type="button"

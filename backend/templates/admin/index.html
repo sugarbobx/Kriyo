@@ -41,6 +41,16 @@
       </tbody>
     </table>
   </div>
+
+  <div class="module" style="margin-bottom: 20px;">
+    <h2>Éducation</h2>
+    <table>
+      <tbody>
+        <tr><th scope="row">Modules marqués lus (total)</th><td>{{ kriyo_stats.education_modules_read_total }}</td></tr>
+        <tr><th scope="row">Utilisateurs avec progression</th><td>{{ kriyo_stats.education_users_with_progress }}</td></tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 {{ block.super }}
 {% endblock %}

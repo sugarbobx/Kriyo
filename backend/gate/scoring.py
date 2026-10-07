@@ -1,5 +1,10 @@
 OVERALL_PASS_THRESHOLD = 0.75
 CRITERION_VALIDATED_THRESHOLD = 0.80
+# A gate pass requires BOTH the overall average above OVERALL_PASS_THRESHOLD
+# AND no single criterion below this floor -- otherwise one perfect
+# criterion can mask another that's badly failing (e.g. 0/6 tension still
+# averages to a passing 80% if the other four criteria are perfect).
+CRITERION_FLOOR = 4 / 6
 LOCK_DURATION_MINUTES = 30
 
 MESSAGE_TIERS = {
@@ -75,3 +80,9 @@ def get_message_tier(overall_score):
 
 def gate_passed(overall_score):
     return overall_score >= OVERALL_PASS_THRESHOLD
+
+
+def all_criteria_above_floor(criterion_scores):
+    """criterion_scores: iterable of (score: float, weight_in_gate: float) pairs,
+    same shape as calculate_overall_score's input -- only the score is used."""
+    return all(score >= CRITERION_FLOOR for score, _weight in criterion_scores)

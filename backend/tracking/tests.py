@@ -76,6 +76,22 @@ class CloseTradeApiTests(APITestCase):
         self.assertEqual(self.trade.pnl, 30)
         self.assertIsNotNone(self.trade.closed_at)
 
+    def test_close_trade_updates_account_current_balance(self):
+        self.account.current_balance = 1000
+        self.account.save(update_fields=['current_balance'])
+
+        self.client.post(f'/api/tracking/trades/{self.trade.id}/close/', {'pnl': 30}, format='json')
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, 1030)
+
+    def test_close_trade_with_loss_decreases_current_balance(self):
+        self.account.current_balance = 1000
+        self.account.save(update_fields=['current_balance'])
+
+        self.client.post(f'/api/tracking/trades/{self.trade.id}/close/', {'pnl': -60}, format='json')
+        self.account.refresh_from_db()
+        self.assertEqual(self.account.current_balance, 940)
+
     def test_close_trade_hitting_daily_dd_locks(self):
         # MODERE: daily_dd=5% of 1000 = 50
         response = self.client.post(f'/api/tracking/trades/{self.trade.id}/close/', {'pnl': -60}, format='json')
@@ -106,10 +122,19 @@ class CloseTradeThrottleTests(APITestCase):
         )
 
     def test_close_trade_is_rate_limited_per_user(self):
-        trades = [
-            Trade.objects.create(account=self.account, score_vr=3, score_ep=3, score_vp=3, score_total=9, status='EN_COURS')
-            for _ in range(31)
-        ]
+        # One EN_COURS trade per account max (unique constraint) -- a
+        # separate account per trade here, since this test is about the
+        # close-trade throttle, not account/trade pairing.
+        profile = RiskProfile.objects.get(type='MODERE')
+        trades = []
+        for i in range(31):
+            account = TradingAccount.objects.create(
+                user=self.user, name=f'Test {i}', capital=1000, current_balance=1000,
+                payout_type='DEUX_SEMAINES', risk_profile=profile,
+            )
+            trades.append(
+                Trade.objects.create(account=account, score_vr=3, score_ep=3, score_vp=3, score_total=9, status='EN_COURS')
+            )
         for trade in trades[:30]:
             response = self.client.post(f'/api/tracking/trades/{trade.id}/close/', {'pnl': 10}, format='json')
             self.assertNotEqual(response.status_code, 429)

@@ -68,6 +68,41 @@ class PerformanceApiTests(APITestCase):
         self.assertEqual(len(response.data), 2)
         self.assertEqual(Trade.objects.count(), 2)
 
+    def test_cannot_execute_trade_on_an_account_that_already_has_one_open(self):
+        account = self._create_account()
+        first = self.client.post(
+            '/api/performance/trades/',
+            {'account_ids': [account.id], 'score_vr': 3, 'score_ep': 3, 'score_vp': 3},
+            format='json',
+        )
+        self.assertEqual(first.status_code, 201)
+
+        second = self.client.post(
+            '/api/performance/trades/',
+            {'account_ids': [account.id], 'score_vr': 3, 'score_ep': 3, 'score_vp': 3},
+            format='json',
+        )
+        self.assertEqual(second.status_code, 409)
+        self.assertEqual(Trade.objects.filter(account=account).count(), 1)
+
+    def test_one_account_with_open_trade_blocks_the_whole_multi_account_request(self):
+        account_a = self._create_account(name='A')
+        account_b = self._create_account(name='B')
+        self.client.post(
+            '/api/performance/trades/',
+            {'account_ids': [account_a.id], 'score_vr': 3, 'score_ep': 3, 'score_vp': 3},
+            format='json',
+        )
+
+        response = self.client.post(
+            '/api/performance/trades/',
+            {'account_ids': [account_a.id, account_b.id], 'score_vr': 3, 'score_ep': 3, 'score_vp': 3},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 409)
+        # Atomic: account_b must not get a trade either, even though it was free.
+        self.assertEqual(Trade.objects.filter(account=account_b).count(), 0)
+
     def test_cannot_execute_trade_on_someone_elses_account(self):
         foreign_account = TradingAccount.objects.create(
             user=self.other_user, name='Not mine', capital=1000, current_balance=1000, payout_type='ON_DEMAND',

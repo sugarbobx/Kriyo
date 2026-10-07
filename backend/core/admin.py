@@ -1,16 +1,22 @@
 from django.contrib import admin
 from django.contrib.sessions.models import Session
+from django.core.cache import cache
 from django.db.models import Avg, Count, Sum
 from django.utils import timezone
 
 from .models import EngagementLog
 
+DASHBOARD_STATS_CACHE_KEY = 'kriyo:admin_dashboard_stats'
+DASHBOARD_STATS_CACHE_SECONDS = 60
+
 
 def _compute_dashboard_stats():
-    """Aggregate metrics shown at the top of /admin/. Kept as plain queries
-    (no caching) -- this page is viewed rarely enough by staff that a fresh
-    read each time is simpler than invalidation logic."""
+    """Aggregate metrics shown at the top of /admin/. The session-scan loop
+    below costs more as active-session count grows, so the result is cached
+    for DASHBOARD_STATS_CACHE_SECONDS by the caller rather than recomputed on
+    every page load -- acceptable staleness for a stats panel."""
     from accounts.models import User
+    from education.models import EducationProgress
     from gate.models import GateAttempt
     from performance.models import Trade, TradingAccount
 
@@ -52,6 +58,8 @@ def _compute_dashboard_stats():
         'trades_verrouille': trades_by_status.get('VERROUILLE', 0),
         'trades_total_pnl': Trade.objects.filter(pnl__isnull=False).aggregate(total=Sum('pnl'))['total'] or 0,
         'engagement_today': EngagementLog.objects.filter(accepted_at__gte=today_start).count(),
+        'education_modules_read_total': EducationProgress.objects.count(),
+        'education_users_with_progress': EducationProgress.objects.values('user').distinct().count(),
     }
 
 
@@ -60,7 +68,11 @@ _original_index = admin.site.index
 
 def _index_with_stats(request, extra_context=None):
     extra_context = dict(extra_context or {})
-    extra_context['kriyo_stats'] = _compute_dashboard_stats()
+    stats = cache.get(DASHBOARD_STATS_CACHE_KEY)
+    if stats is None:
+        stats = _compute_dashboard_stats()
+        cache.set(DASHBOARD_STATS_CACHE_KEY, stats, DASHBOARD_STATS_CACHE_SECONDS)
+    extra_context['kriyo_stats'] = stats
     return _original_index(request, extra_context)
 
 
