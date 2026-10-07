@@ -86,6 +86,15 @@ export default function App() {
     setUser(null);
   }
 
+  async function handleDeleteAccount() {
+    await api.deleteAccount();
+    sessionStorage.removeItem(ENGAGEMENT_KEY);
+    setEngaged(false);
+    setRouteReady(false);
+    setView('dashboard');
+    setUser(null);
+  }
+
   function handleEngagementAccepted() {
     sessionStorage.setItem(ENGAGEMENT_KEY, '1');
     setEngaged(true);
@@ -137,6 +146,7 @@ export default function App() {
       <Dashboard
         user={user}
         onLogout={handleLogout}
+        onDeleteAccount={handleDeleteAccount}
         onOpenGate={() => setView('gate')}
         onOpenPerformance={() => setView('performance')}
         onOpenTracking={() => setView('tracking')}

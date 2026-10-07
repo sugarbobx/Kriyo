@@ -17,6 +17,10 @@ class LoginSerializer(serializers.Serializer):
     timezone = serializers.CharField(required=False, allow_blank=True, max_length=64)
 
 
+class TimezoneSyncSerializer(serializers.Serializer):
+    timezone = serializers.CharField(max_length=64)
+
+
 class SignupSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, trim_whitespace=False)

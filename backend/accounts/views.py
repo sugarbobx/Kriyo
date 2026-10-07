@@ -6,7 +6,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import AnonRateThrottle
 
-from .serializers import LoginSerializer, SignupSerializer, UserSerializer
+from .serializers import LoginSerializer, SignupSerializer, TimezoneSyncSerializer, UserSerializer
 
 
 class LoginRateThrottle(AnonRateThrottle):
@@ -68,7 +68,28 @@ def logout_view(request):
     return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-@api_view(['GET'])
+@api_view(['GET', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def me(request):
+    if request.method == 'DELETE':
+        user = request.user
+        logout(request)
+        user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
     return Response(UserSerializer(request.user).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def sync_timezone(request):
+    """Re-sends the browser's IANA timezone on each app load (not just at
+    login/signup), so a user who travels or crosses a DST change mid-session
+    doesn't have what "today" means for the gate's lock/reset silently drift
+    until their next login."""
+    serializer = TimezoneSyncSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    new_timezone = serializer.validated_data['timezone']
+    if new_timezone != request.user.timezone:
+        request.user.timezone = new_timezone
+        request.user.save(update_fields=['timezone'])
+    return Response(status=status.HTTP_204_NO_CONTENT)

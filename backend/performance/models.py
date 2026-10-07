@@ -64,6 +64,13 @@ class Trade(models.Model):
     risk_reward = models.FloatField(null=True, blank=True)
     pnl = models.FloatField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='EN_COURS')
+    CLOSE_REASON_CHOICES = [
+        ('logged', 'Logged'),
+        ('take_profit_forced', 'Take-profit forced'),
+        ('daily_drawdown', 'Daily drawdown'),
+        ('max_drawdown', 'Max drawdown'),
+    ]
+    close_reason = models.CharField(max_length=32, choices=CLOSE_REASON_CHOICES, null=True, blank=True)
     opened_at = models.DateTimeField(auto_now_add=True)
     closed_at = models.DateTimeField(null=True, blank=True)
 

@@ -201,7 +201,10 @@ class GateApiTests(APITestCase):
         attempt = GateAttempt.objects.get(user=self.user)
         self.assertEqual(attempt.status, 'locked')
         self.assertIsNotNone(attempt.locked_until)
-        self.assertEqual(attempt.criterion_results.count(), 0)
+        # Kept, not deleted: this attempt's per-criterion breakdown is the
+        # only evidence compute_weakest_criterion has for a repeatedly
+        # failing user (see WeakestCriterionTests.test_includes_locked_attempts).
+        self.assertEqual(attempt.criterion_results.count(), 5)
 
         state = self.client.get('/api/gate/current/').data
         self.assertEqual(state['status'], 'locked')
@@ -390,6 +393,28 @@ class WeakestCriterionTests(APITestCase):
         # Two passes, tension always weaker (5/6) than everything else (6/6).
         self._create_passed_attempt_with_scores({'tension': 5 / 6, 'screen_time': 1.0}, days_ago=1)
         self._create_passed_attempt_with_scores({'tension': 5 / 6, 'screen_time': 1.0}, days_ago=0)
+        result = compute_weakest_criterion(self.user)
+        self.assertIsNotNone(result)
+        self.assertEqual(result['key'], 'tension')
+
+    def _create_locked_attempt_with_scores(self, scores_by_key, days_ago=0):
+        completed_at = timezone.now() - timezone.timedelta(days=days_ago)
+        attempt = GateAttempt.objects.create(
+            user=self.user, status='locked', overall_score=0.5, completed_at=completed_at,
+        )
+        for key, score in scores_by_key.items():
+            CriterionResult.objects.create(
+                gate_attempt=attempt, criterion=Criterion.objects.get(key=key),
+                score=score, validated=score >= 0.80, completed_at=completed_at,
+            )
+        return attempt
+
+    def test_includes_locked_attempts(self):
+        # A user stuck failing is exactly who this feedback is for -- a
+        # passed-only filter would return None here forever.
+        from gate.services import compute_weakest_criterion
+        self._create_locked_attempt_with_scores({'tension': 2 / 6, 'screen_time': 1.0}, days_ago=1)
+        self._create_locked_attempt_with_scores({'tension': 2 / 6, 'screen_time': 1.0}, days_ago=0)
         result = compute_weakest_criterion(self.user)
         self.assertIsNotNone(result)
         self.assertEqual(result['key'], 'tension')

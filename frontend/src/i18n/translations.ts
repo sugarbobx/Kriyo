@@ -56,7 +56,11 @@ const fr = dict({
     education: 'Éducation',
     streakLabel: 'Série en cours',
     streakDays: '{n} jour(s)',
-    streakZero: 'Complète le Security Gate aujourd’hui pour démarrer une série.'
+    streakZero: 'Complète le Security Gate aujourd’hui pour démarrer une série.',
+    deleteAccount: 'Supprimer mon compte',
+    deleteAccountPending: 'Suppression...',
+    deleteAccountConfirm: 'Supprimer définitivement ton compte et toutes tes données (comptes de trading, trades, historique du Sas de Sécurité) ? Cette action est irréversible.',
+    deleteAccountError: 'Impossible de supprimer le compte.'
   },
   gate: {
     title: 'Sas de Sécurité',
@@ -71,6 +75,8 @@ const fr = dict({
     reviewSubtitle: 'Questions et réponses déjà enregistrées pour ce critère.',
     weakestCriterionLabel: 'Point le plus faible (7 derniers jours)',
     streakResultLabel: 'Série',
+    streakHonestyNote: 'La série compte les jours où tu t’es évalué honnêtement — pas les jours où tu as tradé.',
+    previousQuestion: 'Question précédente',
     progressLabel: '{count} / 5 critères validés',
     categories: {
       tension: 'Forme & calme',
@@ -85,13 +91,13 @@ const fr = dict({
         'Es-tu libre de tout stress personnel ou émotionnel important en ce moment ?',
         'As-tu mangé dans les dernières heures (pas de trading affamé) ?',
         "Es-tu libre de toute influence d'alcool ou de substance ?",
-        "Te sens-tu calme plutôt qu'anxieux ou trop excité pour cette session ?",
+        "Te sens-tu anxieux ou trop excité pour cette session ?",
         'Es-tu mentalement alerte, sans fatigue ni épuisement ?'
       ],
       screen_time: [
         'As-tu pris une pause au moins une fois par heure pendant ta dernière session ?',
         'Ton temps d’écran total aujourd’hui est-il resté sous ta limite fixée ?',
-        'As-tu évité de vérifier tes applications de trading en dehors de tes horaires prévus ?',
+        'As-tu vérifié tes applications de trading en dehors de tes horaires prévus ?',
         'As-tu pris une pause de 10+ minutes dans les 2 dernières heures ?',
         'Es-tu libre de fatigue oculaire ou physique liée aux écrans ?',
         'As-tu démarré et arrêté ta dernière session aux horaires prévus ?'
@@ -102,11 +108,11 @@ const fr = dict({
         'As-tu fermé toutes les applications et onglets non liés au trading ?',
         'Les notifications des réseaux sociaux sont-elles désactivées pour cette session ?',
         'As-tu prévenu les autres de ne pas te déranger pendant cette session ?',
-        "Es-tu libre de l'envie de vérifier ton téléphone maintenant ?"
+        'Ressens-tu l’envie de vérifier ton téléphone maintenant ?'
       ],
       macro: [
         "As-tu vérifié le calendrier économique du jour pour les événements à fort impact ?",
-        "Y a-t-il aucune publication majeure dans les 30 prochaines minutes ?",
+        "Y a-t-il une publication majeure dans les 30 prochaines minutes ?",
         "Évites-tu de trader pendant une annonce programmée d'une banque centrale ?",
         "Es-tu conscient des résultats/données affectant ton instrument aujourd'hui ?",
         "As-tu ajusté la taille de position pour la volatilité du jour, si elle est élevée ?",
@@ -118,7 +124,7 @@ const fr = dict({
         "La volatilité actuelle est-elle dans ta plage de trading acceptable ?",
         "As-tu vérifié les marchés/instruments corrélés pour confirmation ?",
         "Le trade prévu correspond-il à tes règles de stratégie prédéfinies ?",
-        "Évites-tu de courir après un mouvement déjà étendu ?"
+        'Es-tu en train de courir après un mouvement déjà étendu ?'
       ]
     },
     messages: {
@@ -148,8 +154,11 @@ const fr = dict({
     noAccounts: 'Aucun compte disponible. Ajoute-en un pour continuer.',
     selected: 'Sélectionné',
     activate: 'Activer',
+    today: 'aujourd’hui',
+    staleGateWarning: 'Ton Sas de Sécurité date de {hours}h — le marché a pu changer depuis. Vérifie le contexte macro avant d’exécuter.',
     executeButton: 'Exécuter le Trade',
     incompleteButton: 'Score incomplet',
+    selectAccountButton: 'Sélectionne un compte',
     executingButton: 'Exécution...',
     executedMsg: 'Trade approuvé et enregistré.',
     errorMsg: "Impossible d'exécuter le trade.",
@@ -185,6 +194,12 @@ const fr = dict({
       ON_DEMAND: 'On-Demand — Extraction immédiate',
       DEUX_SEMAINES: '2 Semaines — Challenge avec DD journalier',
       UN_MOIS: '1 Mois — Capitalisation et DD global'
+    },
+    metrics: {
+      initialCapital: 'Capital initial',
+      currentBalance: 'Balance actuelle',
+      cumulativePnl: 'PnL cumulé',
+      closedTrades: 'Trades clôturés'
     }
   },
   tracking: {
@@ -332,7 +347,11 @@ const en = dict({
     education: 'Education',
     streakLabel: 'Current streak',
     streakDays: '{n} day(s)',
-    streakZero: 'Complete the Security Gate today to start a streak.'
+    streakZero: 'Complete the Security Gate today to start a streak.',
+    deleteAccount: 'Delete my account',
+    deleteAccountPending: 'Deleting...',
+    deleteAccountConfirm: 'Permanently delete your account and all your data (trading accounts, trades, Security Gate history)? This cannot be undone.',
+    deleteAccountError: 'Could not delete the account.'
   },
   gate: {
     title: 'Security Gate',
@@ -347,6 +366,8 @@ const en = dict({
     reviewSubtitle: 'Questions and answers already recorded for this criterion.',
     weakestCriterionLabel: 'Weakest area (last 7 days)',
     streakResultLabel: 'Streak',
+    streakHonestyNote: 'The streak counts days you checked in honestly — not days you traded.',
+    previousQuestion: 'Previous question',
     progressLabel: '{count} / 5 criteria passed',
     categories: {
       tension: 'Rest & calm',
@@ -361,13 +382,13 @@ const en = dict({
         'Are you free of significant personal or emotional stress right now?',
         'Have you eaten in the last few hours (not trading hungry)?',
         'Are you free of any alcohol or substance influence?',
-        'Do you feel calm rather than anxious or overly excited about this session?',
+        'Are you feeling anxious or overly excited about this session?',
         'Are you mentally alert, not fatigued or exhausted?'
       ],
       screen_time: [
         'Did you take a break at least once per hour during your last session?',
         'Has your total screen time today stayed under your set limit?',
-        'Did you avoid checking trading apps outside your planned hours?',
+        'Did you check trading apps outside your planned hours?',
         'Have you taken a 10+ minute break in the last 2 hours?',
         'Are you free of eye strain or physical fatigue from screen use?',
         'Did you start and stop your last session at the planned times?'
@@ -378,11 +399,11 @@ const en = dict({
         'Have you closed all non-trading apps and browser tabs?',
         'Are social media notifications disabled for this session?',
         'Have you told others not to disturb you during this session?',
-        'Are you free of the urge to check your phone right now?'
+        'Do you feel the urge to check your phone right now?'
       ],
       macro: [
         'Have you checked today’s economic calendar for high-impact events?',
-        'Are there no major news releases in the next 30 minutes?',
+        'Are there major news releases in the next 30 minutes?',
         'Are you avoiding trading through a scheduled central bank announcement?',
         'Are you aware of any earnings/data releases affecting your instrument today?',
         'Have you adjusted position sizing for today’s volatility, if elevated?',
@@ -394,7 +415,7 @@ const en = dict({
         'Is current volatility within your acceptable trading range?',
         'Have you checked correlated markets/instruments for confirmation?',
         'Does the planned trade fit your predefined strategy rules?',
-        'Are you avoiding chasing a move that’s already extended?'
+        'Are you chasing a move that’s already extended?'
       ]
     },
     messages: {
@@ -424,8 +445,11 @@ const en = dict({
     noAccounts: 'No account available. Add one to continue.',
     selected: 'Selected',
     activate: 'Activate',
+    today: 'today',
+    staleGateWarning: 'Your Security Gate pass is {hours}h old — the market may have moved since. Recheck the macro context before executing.',
     executeButton: 'Execute Trade',
     incompleteButton: 'Incomplete Score',
+    selectAccountButton: 'Select an account',
     executingButton: 'Executing...',
     executedMsg: 'Trade approved and saved.',
     errorMsg: 'Could not execute the trade.',
@@ -461,6 +485,12 @@ const en = dict({
       ON_DEMAND: 'On-Demand — Immediate withdrawal',
       DEUX_SEMAINES: '2 Weeks — Challenge with daily DD',
       UN_MOIS: '1 Month — Compounding and global DD'
+    },
+    metrics: {
+      initialCapital: 'Initial capital',
+      currentBalance: 'Current balance',
+      cumulativePnl: 'Cumulative PnL',
+      closedTrades: 'Closed trades'
     }
   },
   tracking: {

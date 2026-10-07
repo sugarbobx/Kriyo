@@ -1,4 +1,5 @@
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import User
@@ -123,6 +124,96 @@ class PerformanceApiTests(APITestCase):
             format='json',
         )
         return TradingAccount.objects.get(id=response.data['id'])
+
+
+class ExecuteTradeStopDayTests(APITestCase):
+    """A VERROUILLE closure is supposed to stop trading on that account --
+    daily_drawdown/take_profit_forced until the next local day,
+    max_drawdown permanently. Without these checks execute_trade only knew
+    about EN_COURS trades, so nothing stopped reopening immediately."""
+
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(email='perf-stopday@kriyo.local', password='TestPass123!', timezone='UTC')
+        self.client.force_authenticate(user=self.user)
+        # MODERE: daily_dd=5% ($50 of $1000), max_dd=10% ($100) -- a $60
+        # single-trade loss trips daily_dd without reaching max_dd.
+        self.daily_dd_profile = RiskProfile.objects.get(type='MODERE')
+        # CONSERVATEUR: daily_dd=4% ($40), max_dd=8% ($80).
+        self.max_dd_profile = RiskProfile.objects.get(type='CONSERVATEUR')
+
+    def _account(self, risk_profile, current_balance=1000):
+        return TradingAccount.objects.create(
+            user=self.user, name='Test', capital=1000, current_balance=current_balance,
+            payout_type='DEUX_SEMAINES', risk_profile=risk_profile,
+        )
+
+    def _open_and_close(self, account, pnl):
+        trade = Trade.objects.create(
+            account=account, score_vr=3, score_ep=3, score_vp=3, score_total=9, status='EN_COURS'
+        )
+        from tracking.services import close_trade
+        return close_trade(self.user, trade.id, pnl)
+
+    def _execute(self, account):
+        return self.client.post(
+            '/api/performance/trades/',
+            {'account_ids': [account.id], 'score_vr': 3, 'score_ep': 3, 'score_vp': 3},
+            format='json',
+        )
+
+    def test_cannot_execute_after_daily_drawdown_lock_same_day(self):
+        account = self._account(self.daily_dd_profile)
+        _, outcome = self._open_and_close(account, -60)
+        self.assertEqual(outcome['reason_key'], 'daily_drawdown')
+
+        response = self._execute(account)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(Trade.objects.filter(account=account, status='EN_COURS').count(), 0)
+
+    def test_can_execute_again_the_next_local_day(self):
+        account = self._account(self.daily_dd_profile)
+        self._open_and_close(account, -60)
+        locked_trade = Trade.objects.get(account=account)
+        locked_trade.closed_at = timezone.now() - timezone.timedelta(days=1)
+        locked_trade.save(update_fields=['closed_at'])
+
+        response = self._execute(account)
+        self.assertEqual(response.status_code, 201)
+
+    def test_max_drawdown_blocks_permanently_even_the_next_day(self):
+        # Already down $50 (5%) from prior days; today's -$35 (under the 4%
+        # / $40 daily limit on its own) pushes total drawdown to $85, over
+        # the $80 max -- isolates max_drawdown from daily_drawdown.
+        account = self._account(self.max_dd_profile, current_balance=950)
+        _, outcome = self._open_and_close(account, -35)
+        self.assertEqual(outcome['reason_key'], 'max_drawdown')
+        breached_trade = Trade.objects.get(account=account)
+        breached_trade.closed_at = timezone.now() - timezone.timedelta(days=30)
+        breached_trade.save(update_fields=['closed_at'])
+
+        response = self._execute(account)
+        self.assertEqual(response.status_code, 409)
+
+    def test_normal_close_does_not_block_the_next_trade(self):
+        account = self._account(self.daily_dd_profile)
+        self._open_and_close(account, 20)
+
+        response = self._execute(account)
+        self.assertEqual(response.status_code, 201)
+
+    def test_locked_account_blocks_a_multi_account_request_atomically(self):
+        locked_account = self._account(self.daily_dd_profile)
+        other_account = self._account(self.daily_dd_profile)
+        self._open_and_close(locked_account, -60)
+
+        response = self.client.post(
+            '/api/performance/trades/',
+            {'account_ids': [locked_account.id, other_account.id], 'score_vr': 3, 'score_ep': 3, 'score_vp': 3},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(Trade.objects.filter(account=other_account, status='EN_COURS').count(), 0)
 
 
 class PerformanceThrottleTests(APITestCase):

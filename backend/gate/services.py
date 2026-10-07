@@ -100,17 +100,21 @@ def compute_streak(user):
 
 
 def compute_weakest_criterion(user, days=7):
-    """Average score per criterion across passed attempts in the last `days`
-    days, lowest average returned. None unless there's data on at least 2
-    different criteria to compare -- one data point isn't a pattern worth
-    telling someone about (self-monitoring feedback should feel
-    evidence-based, not random)."""
+    """Average score per criterion across recent attempts (passed or locked)
+    in the last `days` days, lowest average returned. None unless there's
+    data on at least 2 different criteria to compare -- one data point isn't
+    a pattern worth telling someone about (self-monitoring feedback should
+    feel evidence-based, not random).
+
+    Deliberately includes locked attempts, not just passed ones: someone
+    stuck failing repeatedly is exactly who needs this feedback most, and a
+    passed-only filter went silent for precisely that person."""
     from django.db.models import Avg
 
     since = timezone.now() - timezone.timedelta(days=days)
     results = (
         CriterionResult.objects.filter(
-            gate_attempt__user=user, gate_attempt__status='passed', gate_attempt__completed_at__gte=since,
+            gate_attempt__user=user, gate_attempt__status__in=['passed', 'locked'], gate_attempt__completed_at__gte=since,
             score__isnull=False,
         )
         .values('criterion__key', 'criterion__label')
@@ -146,6 +150,7 @@ def build_gate_state(attempt):
             'message_tier': scoring.get_message_tier(attempt.overall_score),
             'criteria': _criteria_summary(attempt),
             'streak': streak,
+            'passed_at': attempt.completed_at,
         }
 
     return {
@@ -262,7 +267,11 @@ def record_answer(user, criterion_key, question_id, answer_value):
         attempt.status = 'locked'
         attempt.locked_until = timezone.now() + timezone.timedelta(minutes=scoring.LOCK_DURATION_MINUTES)
         attempt.save(update_fields=['overall_score', 'completed_at', 'status', 'locked_until'])
-        attempt.criterion_results.all().delete()
+        # CriterionResults are kept (not deleted): a retry always gets a fresh
+        # GateAttempt from get_current_attempt regardless, so nothing about
+        # the "start over" behavior depends on wiping this attempt's rows --
+        # and compute_weakest_criterion needs this history to say anything
+        # useful to someone failing repeatedly.
         gate_result = {
             'status': 'locked',
             'overall_score': overall_score,

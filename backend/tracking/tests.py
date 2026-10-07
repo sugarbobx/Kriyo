@@ -16,32 +16,37 @@ def profile(**kwargs):
 
 
 class EvaluateTradeClosureTests(APITestCase):
+    """capital, current_balance, profile, pnl[, daily_pnl_before]. Unless a
+    test is specifically about cumulative behavior, current_balance==capital
+    and daily_pnl_before==0, which reduces every check to the single-trade
+    math the old signature tested directly."""
+
     def test_take_profit_forced_when_pnl_meets_target(self):
-        outcome = evaluate_trade_closure(1000, profile(plafond_tp=40), 400)
+        outcome = evaluate_trade_closure(1000, 1000, profile(plafond_tp=40), 400)
         self.assertEqual(outcome['status'], 'VERROUILLE')
         self.assertEqual(outcome['reason_key'], 'take_profit_forced')
         self.assertEqual(outcome['amount'], 400)
 
     def test_just_below_take_profit_does_not_lock(self):
-        outcome = evaluate_trade_closure(1000, profile(plafond_tp=40), 399)
+        outcome = evaluate_trade_closure(1000, 1000, profile(plafond_tp=40), 399)
         self.assertEqual(outcome['status'], 'CLOTURE')
 
     def test_daily_drawdown_forces_lock(self):
-        outcome = evaluate_trade_closure(1000, profile(daily_dd=5), -50)
+        outcome = evaluate_trade_closure(1000, 1000, profile(daily_dd=5), -50)
         self.assertEqual(outcome['status'], 'VERROUILLE')
         self.assertEqual(outcome['reason_key'], 'daily_drawdown')
 
     def test_just_above_daily_drawdown_does_not_lock(self):
-        outcome = evaluate_trade_closure(1000, profile(daily_dd=5), -49)
+        outcome = evaluate_trade_closure(1000, 1000, profile(daily_dd=5), -49)
         self.assertEqual(outcome['status'], 'CLOTURE')
 
     def test_max_drawdown_forces_lock(self):
-        outcome = evaluate_trade_closure(1000, profile(max_dd=8), -80)
+        outcome = evaluate_trade_closure(1000, 1000, profile(max_dd=8), -80)
         self.assertEqual(outcome['status'], 'VERROUILLE')
         self.assertEqual(outcome['reason_key'], 'max_drawdown')
 
     def test_normal_pnl_just_logs(self):
-        outcome = evaluate_trade_closure(1000, profile(daily_dd=5, max_dd=10), 20)
+        outcome = evaluate_trade_closure(1000, 1000, profile(daily_dd=5, max_dd=10), 20)
         self.assertEqual(outcome['status'], 'CLOTURE')
         self.assertEqual(outcome['reason_key'], 'logged')
         self.assertEqual(outcome['amount'], 20)
@@ -49,8 +54,35 @@ class EvaluateTradeClosureTests(APITestCase):
     def test_take_profit_checked_before_drawdown(self):
         # A profile with both set — a positive pnl that clears TP should hit
         # the take-profit branch, not fall through to drawdown checks.
-        outcome = evaluate_trade_closure(1000, profile(plafond_tp=40, daily_dd=5), 500)
+        outcome = evaluate_trade_closure(1000, 1000, profile(plafond_tp=40, daily_dd=5), 500)
         self.assertEqual(outcome['reason_key'], 'take_profit_forced')
+
+    def test_daily_drawdown_is_cumulative_across_several_trades(self):
+        # Two losses this trading day, each individually under the 5%/$50
+        # threshold ($30 then $25), together exceed it ($55) -- this is the
+        # whole point of a *daily* limit, not a per-trade one.
+        outcome = evaluate_trade_closure(1000, 1000, profile(daily_dd=5), -25, daily_pnl_before=-30)
+        self.assertEqual(outcome['status'], 'VERROUILLE')
+        self.assertEqual(outcome['reason_key'], 'daily_drawdown')
+
+    def test_daily_drawdown_resets_the_next_day(self):
+        # Yesterday's losses don't count toward today's cumulative check --
+        # daily_pnl_before is the caller's job to scope to "today" (see
+        # close_trade), this just verifies the function trusts what it's given.
+        outcome = evaluate_trade_closure(1000, 1000, profile(daily_dd=5), -25, daily_pnl_before=0)
+        self.assertEqual(outcome['status'], 'CLOTURE')
+
+    def test_max_drawdown_is_measured_against_current_balance_not_just_this_trade(self):
+        # Account already down to 940 (6% drawdown from 1000) from earlier
+        # days; today's small -30 loss pushes total drawdown to 9.3%, over
+        # an 8% max -- even though -30 alone is nowhere near 8% of capital.
+        outcome = evaluate_trade_closure(1000, 940, profile(max_dd=8), -30, daily_pnl_before=0)
+        self.assertEqual(outcome['status'], 'VERROUILLE')
+        self.assertEqual(outcome['reason_key'], 'max_drawdown')
+
+    def test_max_drawdown_not_yet_breached_still_logs(self):
+        outcome = evaluate_trade_closure(1000, 940, profile(max_dd=8), -10, daily_pnl_before=0)
+        self.assertEqual(outcome['status'], 'CLOTURE')
 
 
 class CloseTradeApiTests(APITestCase):
@@ -99,6 +131,25 @@ class CloseTradeApiTests(APITestCase):
         self.assertEqual(response.data['outcome']['status'], 'VERROUILLE')
         self.trade.refresh_from_db()
         self.assertEqual(self.trade.status, 'VERROUILLE')
+        self.assertEqual(self.trade.close_reason, 'daily_drawdown')
+
+    def test_close_trade_persists_the_normal_close_reason(self):
+        response = self.client.post(f'/api/tracking/trades/{self.trade.id}/close/', {'pnl': 10}, format='json')
+        self.assertEqual(response.status_code, 200)
+        self.trade.refresh_from_db()
+        self.assertEqual(self.trade.close_reason, 'logged')
+
+    def test_two_small_same_day_losses_cumulatively_trip_daily_dd(self):
+        # MODERE: daily_dd=5% of 1000 = 50. Neither loss alone reaches it.
+        first_close = self.client.post(f'/api/tracking/trades/{self.trade.id}/close/', {'pnl': -30}, format='json')
+        self.assertEqual(first_close.data['outcome']['status'], 'CLOTURE')
+
+        second_trade = Trade.objects.create(
+            account=self.account, score_vr=3, score_ep=3, score_vp=3, score_total=9, status='EN_COURS'
+        )
+        second_close = self.client.post(f'/api/tracking/trades/{second_trade.id}/close/', {'pnl': -25}, format='json')
+        self.assertEqual(second_close.data['outcome']['status'], 'VERROUILLE')
+        self.assertEqual(second_close.data['outcome']['reason_key'], 'daily_drawdown')
 
     def test_cannot_close_already_closed_trade(self):
         self.client.post(f'/api/tracking/trades/{self.trade.id}/close/', {'pnl': 10}, format='json')

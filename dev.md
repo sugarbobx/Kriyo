@@ -404,3 +404,88 @@ visible, aucune trace d'erreur serveur). Rien n'est committe -- en attente
 de confirmation utilisateur avant commit+push (la migration
 `performance.0004` notamment modifie un schema de contrainte, a verifier
 sur une sauvegarde VPS avant d'etre deployee comme toujours).
+
+---
+
+### [LOCAL] 2026-10-07 — Audit fonctionnel (casquette psychologue + developpeur) + corrections
+Statut: DONE
+
+Demande / remarque :
+Audit du schema fonctionnel de Kriyo en combinant un regard psychologue
+(coherence de l'intervention comportementale) et developpeur (correction
+du code), pour trouver les "zones d'ombre". 12 points releves, puis tous
+corriges sur demande explicite ("corrige tout ensuite commit et pousse").
+
+Ce qui a ete corrige :
+1. **Daily drawdown calcule par trade, pas par jour** -- `evaluate_trade_closure`
+   compare desormais le PnL CUMULE du jour (pas juste le trade en cours) au
+   seuil. `close_trade` calcule `daily_pnl_before` a partir des trades deja
+   clotures aujourd'hui (jour local du user).
+2. **Rien n'empechait de rouvrir un trade juste apres un lock DD/TP** --
+   nouveau champ `Trade.close_reason` (migration `performance.0005`),
+   verifie par `execute_trade` : `daily_drawdown`/`take_profit_forced`
+   bloquent le compte jusqu'au prochain jour local (`AccountLockedForTodayError`),
+   `max_drawdown` bloque le compte **definitivement**
+   (`AccountBreachedError`, compte "souffle").
+3. **Feedback "point le plus faible" ne marchait que sur les tentatives
+   reussies** -- `compute_weakest_criterion` inclut maintenant aussi les
+   tentatives `locked`. Le `.delete()` des `CriterionResult` sur echec a
+   ete retire (n'etait pas necessaire au "nouvel essai" qui cree de toute
+   facon un nouveau `GateAttempt`, et detruisait la seule donnee utile a
+   ce feedback pour quelqu'un qui echoue en boucle).
+4. **Streak = pression a mentir pour ne pas la casser** -- ajout d'une note
+   sous le badge de serie ("compte les jours evalues honnetement, pas les
+   jours tradees") pour decoupler explicitement le streak de l'activite de
+   trading.
+5. **Bug de fond trouve pendant l'audit (pas dans la liste initiale,
+   plus grave)** : la question "reverse-phrasee" anti-oui-partout
+   (migration `gate.0004`) changeait le texte backend ET `positive_answer`,
+   mais le frontend affiche ses propres chaines i18n qui n'avaient jamais
+   ete mises a jour -- l'utilisateur voyait la formulation POSITIVE
+   d'origine pendant que le backend notait comme si la formulation etait
+   INVERSEE. Resultat : un utilisateur honnete et calme qui repondait
+   sincerement "Oui" a cette question precise etait note comme s'il avait
+   mal repondu, plafonnant injustement son score sur 1 des 5 criteres,
+   chaque jour, depuis le deploiement de `gate.0004`. Corrige en
+   remplacant le texte FR/EN affiche par la formulation reellement notee
+   (5 questions, FR+EN dans `translations.ts`).
+6. **Lock du Sas de Securite sans aucun contenu** -- ajout du module
+   Education "Routine et recuperation" (deja ecrit, jamais connecte) sur
+   l'ecran de lock, meme pattern que le nudge deja present sur un lock de
+   trade.
+7. et 8. **Binaire sans nuance / pas de re-validation intraday** --
+   **non corriges**, voir "Non traite" ci-dessous.
+9. **Donnees sensibles sans suppression possible** -- nouveau
+   `DELETE /api/auth/me/` (supprime l'utilisateur, cascade sur toutes ses
+   donnees) + bouton "Supprimer mon compte" sur le Dashboard (confirmation
+   navigateur).
+10. **Pas de visibilite sur la marge de risque au moment de selectionner un
+    compte pour le 9/9** -- chaque ligne de compte dans Performance affiche
+    maintenant la balance actuelle + le PnL du jour (vert/rouge). Ajout
+    aussi d'un avertissement doux si le Sas de Securite date de 4h+ au
+    moment d'executer (nouveau champ `passed_at` sur l'etat du gate).
+11. **Fuseau horaire fige a la connexion** -- nouveau
+    `POST /api/auth/timezone/`, appele a chaque ouverture du Sas de
+    Securite (pas seulement au login).
+12. **Aucun retour en arriere dans le quiz** -- bouton "Question
+    precedente" ajoute (le backend acceptait deja la re-reponse via
+    `update_or_create`, seul le frontend bloquait).
+
+Non traite (scope volontairement limite, a planifier separement si
+voulu) :
+- **#7 Binaire Oui/Non sans nuance** : passer a une echelle (ex: 3 points)
+  demanderait de recalibrer tout le systeme de poids/plancher par critere
+  et de refaire l'UI des 30 questions -- disproportionne pour ce passage,
+  risque de casser un systeme de scoring deja calibre et teste.
+- **#8 Re-validation intraday complete** : un vrai re-check Macro/Alignment
+  avant chaque trade recouperait fortement le questionnaire VR/EP/VP du
+  Palier 02 -- seule une version minimale a ete faite (avertissement
+  "Sas de Securite vieux de Xh"), une vraie re-certification reste a
+  concevoir si le besoin se confirme.
+
+Notes d'execution :
+Tests backend complets (gate, performance, tracking, core, accounts,
+education) verts apres chaque etape. `npm run build` frontend sans erreur
+TypeScript. Nouvelle migration `performance.0005_trade_close_reason` --
+additive (champ nullable), aucune donnee existante a backfiller,
+deployable sans precaution particuliere contrairement a `performance.0004`.

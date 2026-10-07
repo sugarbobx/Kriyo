@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api, type CriterionState, type GateQuestion, type GateReviewItem, type GateState, type MessageTier, type WeakestCriterion } from './api/client';
+import { api, detectTimezone, type CriterionState, type GateQuestion, type GateReviewItem, type GateState, type MessageTier, type WeakestCriterion } from './api/client';
 import { formatCountdown } from './time';
 import AppShell from './AppShell';
 import { useLanguage } from './i18n/context';
@@ -94,6 +94,11 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     api.gate.current().then(applyState).catch(() => setError('Error loading the Security Gate.'));
+    // Re-send the browser's timezone on every gate visit, not just at
+    // login -- this is precisely where a stale timezone (travel, DST) would
+    // silently shift what "today" means for the lock/reset boundary.
+    const tz = detectTimezone();
+    if (tz) api.syncTimezone(tz).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -187,11 +192,17 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
 
   if (screen === 'locked') {
     const copy = dict.gate.messages.locked;
+    const recoveryModule = dict.education.modules[4]; // Routine et récupération
     return (
       <AppShell title={dict.gate.title} subtitle={dict.gate.lockedTitle}>
         <span className="kriyo-badge">{dict.gate.lockedBadge}</span>
         {remainingMs != null ? <p className="kriyo-countdown">{formatCountdown(remainingMs)}</p> : null}
         <p className="kriyo-dim">{copy.body}</p>
+        <div className="kriyo-palier">
+          <p className="kriyo-palier-eyebrow">{dict.education.title}</p>
+          <p className="kriyo-palier-title">{recoveryModule.title}</p>
+          <p className="kriyo-palier-note">{recoveryModule.summary}</p>
+        </div>
         <button className="kriyo-btn kriyo-btn--secondary" onClick={onDone}>
           {dict.common.back}
         </button>
@@ -211,6 +222,7 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
           <div className="kriyo-palier" style={{ borderColor: 'rgba(232,163,61,0.35)' }}>
             <p className="kriyo-palier-eyebrow" style={{ color: 'var(--kriyo-amber)' }}>{dict.gate.streakResultLabel}</p>
             <p className="kriyo-palier-title">🔥 {interpolate(dict.dashboard.streakDays, { n: String(result.streak) })}</p>
+            <p className="kriyo-palier-note">{dict.gate.streakHonestyNote}</p>
           </div>
         ) : null}
         {result.weakestCriterion ? (
@@ -248,6 +260,15 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
                 {dict.common.yes}
               </button>
             </div>
+            {questionIndex > 0 ? (
+              <button
+                className="kriyo-btn kriyo-btn--secondary"
+                onClick={() => setQuestionIndex((i) => Math.max(0, i - 1))}
+                disabled={submitting}
+              >
+                {dict.gate.previousQuestion}
+              </button>
+            ) : null}
           </>
         ) : null}
         {error ? <p className="kriyo-error">{error}</p> : null}

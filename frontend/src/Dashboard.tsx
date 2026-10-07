@@ -7,6 +7,7 @@ import { interpolate } from './i18n/translations';
 export default function Dashboard({
   user,
   onLogout,
+  onDeleteAccount,
   onOpenGate,
   onOpenPerformance,
   onOpenTracking,
@@ -14,6 +15,7 @@ export default function Dashboard({
 }: {
   user: User;
   onLogout: () => void;
+  onDeleteAccount: () => Promise<void>;
   onOpenGate: () => void;
   onOpenPerformance: () => void;
   onOpenTracking: () => void;
@@ -21,6 +23,21 @@ export default function Dashboard({
 }) {
   const { dict } = useLanguage();
   const [gate, setGate] = useState<GateState | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  async function handleDeleteClick() {
+    if (deleting) return;
+    if (!window.confirm(dict.dashboard.deleteAccountConfirm)) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await onDeleteAccount();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : dict.dashboard.deleteAccountError);
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     api.gate.current().then(setGate).catch(() => setGate(null));
@@ -96,6 +113,16 @@ export default function Dashboard({
       <button className="kriyo-btn kriyo-btn--secondary" onClick={onLogout}>
         {dict.common.logout}
       </button>
+
+      <button
+        className="kriyo-btn kriyo-btn--secondary"
+        style={{ color: 'var(--kriyo-danger)' }}
+        onClick={handleDeleteClick}
+        disabled={deleting}
+      >
+        {deleting ? dict.dashboard.deleteAccountPending : dict.dashboard.deleteAccount}
+      </button>
+      {deleteError ? <p className="kriyo-error">{deleteError}</p> : null}
     </AppShell>
   );
 }

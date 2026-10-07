@@ -1,9 +1,27 @@
-import { useMemo, useState } from 'react';
-import { api } from './api/client';
+import { useEffect, useMemo, useState } from 'react';
+import { api, type GateState, type Trade, type TradingAccount } from './api/client';
 import AppShell from './AppShell';
 import { useLanguage } from './i18n/context';
 import { interpolate } from './i18n/translations';
 import { useAsyncResource } from './hooks/useAsyncResource';
+import { formatCurrency } from './formatters';
+
+interface PerformanceData {
+  accounts: TradingAccount[];
+  trades: Trade[];
+}
+
+function isToday(isoDate: string) {
+  const d = new Date(isoDate);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+}
+
+function todaysPnl(accountId: number, trades: Trade[]) {
+  return trades
+    .filter((t) => t.account === accountId && t.status !== 'EN_COURS' && t.closed_at && isToday(t.closed_at) && t.pnl != null)
+    .reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+}
 
 const questionIds = [
   'vr-structure', 'vr-liquidity', 'vr-trend',
@@ -30,16 +48,30 @@ const groups = ['VR', 'EP', 'VP'] as const;
 
 export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts: () => void; onBack: () => void }) {
   const { dict } = useLanguage();
-  const { data: accounts, status: loadStatus, error: loadError, reload } = useAsyncResource(
-    () => api.performance.accounts(),
+  const { data, status: loadStatus, error: loadError, reload } = useAsyncResource<PerformanceData>(
+    () => Promise.all([api.performance.accounts(), api.performance.trades()]).then(([accounts, trades]) => ({ accounts, trades })),
     []
   );
+  const accounts = data?.accounts ?? null;
+  const trades = data?.trades ?? [];
+  const [gate, setGate] = useState<GateState | null>(null);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [answers, setAnswers] = useState<Answers>(defaultAnswers);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [messageIsError, setMessageIsError] = useState(false);
   const [groupIndex, setGroupIndex] = useState(0);
+
+  useEffect(() => {
+    // Best-effort, non-blocking: used only to nudge "your Security Gate
+    // pass is a few hours old" -- never gates the 9/9 flow itself.
+    api.gate.current().then(setGate).catch(() => setGate(null));
+  }, []);
+
+  const gateStaleHours = useMemo(() => {
+    if (gate?.status !== 'passed_today' || !gate.passed_at) return null;
+    return (Date.now() - new Date(gate.passed_at).getTime()) / 3_600_000;
+  }, [gate]);
 
   const vr = useMemo(() => groupScore(answers, 'VR'), [answers]);
   const ep = useMemo(() => groupScore(answers, 'EP'), [answers]);
@@ -99,6 +131,7 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
         {loadStatus === 'ready' && accounts
           ? accounts.map((account) => {
               const selected = selectedIds.includes(account.id);
+              const pnlToday = todaysPnl(account.id, trades);
               return (
                 <button
                   key={account.id}
@@ -107,7 +140,19 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
                   data-state={selected ? 'validated' : undefined}
                   onClick={() => toggleAccount(account.id)}
                 >
-                  <p style={{ margin: 0 }}>{account.name}</p>
+                  <div>
+                    <p style={{ margin: 0 }}>{account.name}</p>
+                    <p className="kriyo-dim" style={{ margin: '0.2rem 0 0', fontSize: '0.75rem' }}>
+                      {formatCurrency(account.current_balance)}
+                      {pnlToday !== 0 ? (
+                        <span style={{ color: pnlToday < 0 ? 'var(--kriyo-danger)' : 'var(--kriyo-success)' }}>
+                          {' '}
+                          ({pnlToday > 0 ? '+' : ''}
+                          {formatCurrency(pnlToday)} {dict.performance.today})
+                        </span>
+                      ) : null}
+                    </p>
+                  </div>
                   <span className={`kriyo-badge ${selected ? 'kriyo-badge--success' : ''}`}>
                     {selected ? dict.performance.selected : dict.performance.activate}
                   </span>
@@ -184,8 +229,20 @@ export default function Performance({ onOpenAccounts, onBack }: { onOpenAccounts
         );
       })()}
 
+      {gateStaleHours != null && gateStaleHours >= 4 ? (
+        <div className="kriyo-offline-banner" role="status">
+          {interpolate(dict.performance.staleGateWarning, { hours: String(Math.floor(gateStaleHours)) })}
+        </div>
+      ) : null}
+
       <button className="kriyo-btn kriyo-btn--primary" disabled={!canExecute || saving} onClick={executeTrade}>
-        {saving ? dict.performance.executingButton : canExecute ? dict.performance.executeButton : dict.performance.incompleteButton}
+        {saving
+          ? dict.performance.executingButton
+          : canExecute
+            ? dict.performance.executeButton
+            : total < 9
+              ? dict.performance.incompleteButton
+              : dict.performance.selectAccountButton}
       </button>
       {message ? <p className={messageIsError ? 'kriyo-error' : 'kriyo-dim'}>{message}</p> : null}
 

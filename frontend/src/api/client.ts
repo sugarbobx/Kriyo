@@ -59,7 +59,7 @@ export class ApiValidationError extends Error {
   }
 }
 
-function detectTimezone() {
+export function detectTimezone() {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
   } catch {
@@ -92,6 +92,7 @@ export interface GateState {
   message_tier: MessageTier | null;
   criteria: CriterionState[];
   streak: number;
+  passed_at?: string | null;
 }
 
 export interface GateQuestion {
@@ -180,6 +181,8 @@ export const api = {
     }),
   logout: () => request<void>('/auth/logout/', { method: 'POST' }),
   me: () => request<User>('/auth/me/'),
+  deleteAccount: () => request<void>('/auth/me/', { method: 'DELETE' }),
+  syncTimezone: (tz: string) => request<void>('/auth/timezone/', { method: 'POST', body: JSON.stringify({ timezone: tz }) }),
   acceptEngagement: () => request<{ accepted_at: string }>('/engagement/accept/', { method: 'POST' }),
   gate: {
     current: () => request<GateState>('/gate/current/'),

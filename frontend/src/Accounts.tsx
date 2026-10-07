@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { api, type PayoutType } from './api/client';
+import { api, type PayoutType, type Trade } from './api/client';
 import AppShell from './AppShell';
 import { useLanguage } from './i18n/context';
 import { useAsyncResource } from './hooks/useAsyncResource';
@@ -7,12 +7,20 @@ import { formatCurrency } from './formatters';
 
 const PAYOUT_TYPES: PayoutType[] = ['ON_DEMAND', 'DEUX_SEMAINES', 'UN_MOIS'];
 
+function accountMetrics(accountId: number, trades: Trade[] | null) {
+  const closed = (trades ?? []).filter((t) => t.account === accountId && t.status === 'CLOTURE');
+  const cumulativePnl = closed.reduce((sum, t) => sum + (t.pnl ?? 0), 0);
+  return { cumulativePnl, closedCount: closed.length };
+}
+
 export default function Accounts({ onBack }: { onBack: () => void }) {
   const { dict } = useLanguage();
   const { data: accounts, status: loadStatus, error: loadError, reload, setData: setAccounts } = useAsyncResource(
     () => api.performance.accounts(),
     []
   );
+  const { data: trades } = useAsyncResource(() => api.performance.trades(), []);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [capital, setCapital] = useState('');
   const [currentBalance, setCurrentBalance] = useState('');
@@ -116,15 +124,47 @@ export default function Accounts({ onBack }: { onBack: () => void }) {
           <p className="kriyo-dim">{dict.accounts.noAccountsYet}</p>
         ) : null}
         {loadStatus === 'ready' && accounts
-          ? accounts.map((account) => (
-              <div key={account.id} className="kriyo-palier">
-                <p className="kriyo-palier-title">{account.name}</p>
-                <p className="kriyo-palier-note">
-                  {formatCurrency(account.capital)} → {formatCurrency(account.current_balance)} · {account.payout_type} ·{' '}
-                  {account.risk_profile.label}
-                </p>
-              </div>
-            ))
+          ? accounts.map((account) => {
+              const expanded = expandedId === account.id;
+              const metrics = accountMetrics(account.id, trades);
+              return (
+                <button
+                  key={account.id}
+                  type="button"
+                  className="kriyo-palier"
+                  style={{ width: '100%', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit' }}
+                  onClick={() => setExpandedId(expanded ? null : account.id)}
+                >
+                  <p className="kriyo-palier-title">{account.name}</p>
+                  <p className="kriyo-palier-note">
+                    {formatCurrency(account.capital)} → {formatCurrency(account.current_balance)} · {account.payout_type} ·{' '}
+                    {account.risk_profile.label}
+                  </p>
+                  {expanded ? (
+                    <div className="kriyo-metrics-grid">
+                      <div>
+                        <p className="kriyo-field-label">{dict.accounts.metrics.initialCapital}</p>
+                        <p className="kriyo-palier-title">{formatCurrency(account.capital)}</p>
+                      </div>
+                      <div>
+                        <p className="kriyo-field-label">{dict.accounts.metrics.currentBalance}</p>
+                        <p className="kriyo-palier-title">{formatCurrency(account.current_balance)}</p>
+                      </div>
+                      <div>
+                        <p className="kriyo-field-label">{dict.accounts.metrics.cumulativePnl}</p>
+                        <p className="kriyo-palier-title" style={{ color: metrics.cumulativePnl < 0 ? 'var(--kriyo-danger)' : 'var(--kriyo-success)' }}>
+                          {formatCurrency(metrics.cumulativePnl)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="kriyo-field-label">{dict.accounts.metrics.closedTrades}</p>
+                        <p className="kriyo-palier-title">{metrics.closedCount}</p>
+                      </div>
+                    </div>
+                  ) : null}
+                </button>
+              );
+            })
           : null}
       </div>
 

@@ -1,0 +1,246 @@
+Kriyo — 100 API utiles pour optimiser l'application
+Genere le 2026-10-07. Classees par domaine fonctionnel, chacune avec le lien
+direct vers son usage dans Kriyo (Sas de Securite, Score de Performance,
+Tracking, Education, Admin, infra).
+
+================================================================
+A. DONNEES DE MARCHE & CALENDRIER MACRO
+   (objective le critere "Macro" et "Alignment" du Sas de Securite,
+   aujourd'hui bases sur de l'autodeclaration)
+================================================================
+1. TradingEconomics API — calendrier economique complet temps reel, pour
+   automatiser la question "calendrier eco verifie du jour".
+2. Forex Factory calendar — alternative gratuite de calendrier macro.
+3. FRED (Federal Reserve Economic Data) API — donnees macro officielles US
+   (taux, inflation) pour contextualiser les annonces a fort impact.
+4. Finnhub — cours temps reel actions/forex/crypto + news, pour afficher le
+   marche suivi dans l'ecran Tracking.
+5. Alpha Vantage — cours historiques/temps reel gratuits, fallback simple
+   pour petit volume d'utilisateurs.
+6. Twelve Data — cours multi-actifs avec plan gratuit genereux, bon
+   fallback secondaire.
+7. Polygon.io — donnees de marche US temps reel qualite institutionnelle,
+   si le volume d'utilisateurs augmente.
+8. OANDA REST API — cours forex + spreads temps reel, pertinent car Kriyo
+   cible des traders forex en prop firm.
+9. Indice VIX (via Twelve Data/Alpha Vantage) — objective la question
+   "volatilite actuelle dans ta plage acceptable" du critere Alignment.
+10. Market Hours / Trading Sessions API (ex: Polygon Market Status) —
+    savoir si Tokyo/London/NY est ouvert, pertinent pour Macro/Alignment.
+
+================================================================
+B. CONNEXION BROKERS & SYNCHRONISATION DES TRADES
+   (remplace la saisie manuelle dans Tracking par des trades reels)
+================================================================
+11. MetaApi.cloud — pont REST/WebSocket vers MetaTrader 4/5, synchronise
+    automatiquement les trades reels au lieu d'une saisie manuelle.
+12. cTrader Open API — meme usage pour les comptes cTrader.
+13. TradeLocker API — plateforme native prop firm, integration directe des
+    comptes challenge.
+14. MyFxBook API — verification/synchronisation de l'historique de
+    trading, utile pour un audit anti-triche sur le score 9/9.
+15. Interactive Brokers Web API — sync pour les utilisateurs actions/futures.
+16. FIX API (via un fournisseur type OANDA/IG) — standard institutionnel
+    pour un flux d'ordres temps reel.
+17. TradingView Webhook Alerts — declenche automatiquement le pre-remplissage
+    du questionnaire 9/9 a partir d'une alerte de strategie.
+18. Tradervue API — import/export de journal de trading pour comparer avec
+    les donnees Kriyo.
+
+================================================================
+C. SANTE, SOMMEIL & RECUPERATION
+   (objective le critere "Tension" — sommeil, stress, lucidite)
+================================================================
+19. Apple HealthKit (via app compagnon) — recupere les heures de sommeil
+    reelles, objective "As-tu dormi au moins 7h cette nuit".
+20. Google Fit API — equivalent Android.
+21. Oura Ring API — donnees de sommeil et readiness tres precises, option
+    premium pour utilisateurs serieux.
+22. Whoop API — donnees de recuperation/stress physiologique en direct.
+23. Fitbit Web API — alternative grand public pour sommeil/activite.
+24. Garmin Health API — autre source wearable.
+25. HRV4Training API — mesure de la variabilite cardiaque (stress) en direct.
+26. Withings API — balance et sommeil connectes, option supplementaire.
+
+================================================================
+D. DISCIPLINE ECRAN & TELEPHONE
+   (objective les criteres "Screen time" et "Phone", aujourd'hui du
+   pur declaratif)
+================================================================
+27. iOS Screen Time / Family Controls (app compagnon native) — verifie le
+    temps d'ecran reel au lieu d'une autodeclaration.
+28. Android Digital Wellbeing / UsageStatsManager (natif) — equivalent
+    Android.
+29. RescueTime API — temps d'ecran et categorisation d'activite
+    multiplateforme desktop.
+30. Freedom API (bloqueur d'applications) — bloque les apps distrayantes
+    pendant la session de trading (critere Phone).
+31. Focus Mode / Do Not Disturb status (iOS Shortcuts) — verifie
+    automatiquement "telephone en mode Ne pas deranger".
+32. Android Do Not Disturb status (companion app) — equivalent Android.
+
+================================================================
+E. AUTHENTIFICATION, SECURITE & CONFORMITE
+================================================================
+33. Auth0 — authentification geree, MFA, SSO si Kriyo depasse le login maison.
+34. Clerk — alternative moderne a Auth0, bons SDK React.
+35. WorkOS — SSO entreprise si Kriyo se vend en B2B a des prop firms.
+36. Twilio Verify — 2FA par SMS/app, securise les comptes de trading.
+37. FingerprintJS — empreinte d'appareil anti-fraude (multi-comptes, abus
+    d'essai gratuit).
+38. Cloudflare Turnstile — captcha invisible anti-bot sur signup/login,
+    remplace un reCAPTCHA classique.
+39. Have I Been Pwned API — verifie a l'inscription si le mot de passe
+    choisi est deja compromis.
+40. IP geolocation (ipapi / ipinfo) — restrictions geographiques si
+    exigees par des prop firms partenaires.
+41. Stripe Identity / Persona — verification d'identite (KYC) si Kriyo
+    gere des comptes de trading reels a fort enjeu.
+42. HashiCorp Vault / AWS KMS — gestion securisee des secrets (cles API
+    brokers, identifiants DB) en prod, au-dela du .env en clair actuel.
+
+================================================================
+F. COMMUNICATION (EMAIL, SMS, PUSH)
+   (dev.md signale l'absence totale d'infra email aujourd'hui — bloque
+   le reset de mot de passe et la verification d'email)
+================================================================
+43. SendGrid — emails transactionnels (reset mot de passe, verification
+    email) — le trou identifie dans l'audit de securite.
+44. Postmark — alternative a SendGrid, excellente delivrabilite
+    transactionnelle.
+45. AWS SES — option economique a grande echelle pour les memes emails.
+46. Resend — API email moderne orientee developpeurs, simple a integrer
+    avec React/Django.
+47. Twilio SMS — alertes critiques par SMS (compte verrouille, trade qui
+    atteint le max DD).
+48. Firebase Cloud Messaging — notifications push PWA (rappel quotidien du
+    Sas de Securite, rappel de streak).
+49. OneSignal — plateforme push tout-en-un (web + mobile) si l'app devient
+    native.
+50. Web Push API (standard VAPID) — notifications push natives PWA sans
+    dependance tierce, pour les rappels de streak deja calcules cote
+    serveur.
+
+================================================================
+G. PAIEMENT & ABONNEMENT
+================================================================
+51. Stripe Billing — abonnement premium (wearables, coach IA, stats
+    avancees).
+52. Paddle — alternative a Stripe avec TVA internationale geree
+    (merchant of record).
+53. LemonSqueezy — alternative simple pour un SaaS solo/petite equipe.
+54. Chargebee — gestion d'abonnement complexe (paliers, essais) si
+    l'offre se diversifie.
+55. Rewardful — programme de parrainage/affiliation entre traders.
+56. PayPal API — moyen de paiement alternatif sur les marches ou Stripe
+    est faible.
+
+================================================================
+H. OBSERVABILITE (ERREURS, ANALYTICS, MONITORING)
+================================================================
+57. Sentry — tracking d'erreurs frontend + backend, remplace le debug
+    manuel actuel.
+58. LogRocket — session replay pour comprendre ou les utilisateurs
+    bloquent (ex: sur le score 9/9).
+59. PostHog — analytics produit + feature flags + session replay, open
+    source et auto-hebergeable (coherent avec le choix "pas de SaaS
+    verrouille" du projet).
+60. Plausible Analytics — analytics respectueux de la vie privee, leger,
+    alternative a Google Analytics.
+61. Mixpanel — analyse d'entonnoir (combien passent le Sas de Securite,
+    combien abandonnent le score 9/9).
+62. Datadog — monitoring infra VPS (CPU, latence Gunicorn, requetes
+    lentes).
+63. Better Uptime / UptimeRobot — surveillance de disponibilite du VPS
+    avec alerte si le site tombe.
+64. Papertrail / Logtail — agregation centralisee des logs Django + nginx
+    du VPS.
+65. GrowthBook — feature flags + A/B testing open source, pour tester par
+    ex. deux formulations de critere sans tout redeployer.
+66. Statuspage / Instatus — page de statut publique si Kriyo a des
+    utilisateurs payants qui veulent de la transparence en cas
+    d'incident.
+
+================================================================
+I. CONTENU EDUCATIF & LOCALISATION
+================================================================
+67. DeepL API — traduction FR/EN de meilleure qualite qu'une traduction
+    manuelle, accelere les mises a jour i18n.
+68. LibreTranslate — alternative a DeepL open source auto-hebergeable,
+    coherente avec la philosophie "pas de dependance SaaS" du projet.
+69. Strapi (API headless) — gere le contenu du module Education sans
+    redeployer le frontend a chaque nouveau module.
+70. Sanity.io — alternative CMS headless plus moderne, bon editeur
+    visuel.
+71. Mux — hebergement/streaming video si le module Education s'enrichit
+    de videos pedagogiques.
+72. YouTube Data API — integre des videos existantes de psychologie du
+    trading sans les re-heberger.
+73. Algolia — recherche instantanee dans le glossaire/contenu Education a
+    mesure qu'il grossit.
+74. Diffbot / Readability API — extraction propre d'articles externes
+    cites en lecture complementaire dans Education.
+
+================================================================
+J. IA & COACHING
+================================================================
+75. Claude API (Anthropic) — genere un feedback personnalise apres chaque
+    cloture de trade, a partir du pattern detecte (ex: revenge trading
+    recurrent).
+76. OpenAI API (Whisper) — transcription vocale si l'utilisateur
+    journalise ses trades a l'oral.
+77. OpenAI API (embeddings) — recherche semantique dans l'historique du
+    journal ("montre-moi mes trades similaires a celui-ci").
+78. Hugging Face Inference API — classification de sentiment sur les
+    notes de trade libres.
+79. AssemblyAI — transcription + detection d'emotion vocale, pour un
+    futur journal audio.
+80. LanguageTool API — correction grammaticale des notes de trading avant
+    affichage/export.
+81. Perspective API (Google Jigsaw) — moderation de contenu si Kriyo
+    ajoute des commentaires/communaute entre traders.
+82. Pinecone / Weaviate — base vectorielle pour alimenter un coach IA qui
+    connait tout l'historique de l'utilisateur.
+83. ElevenLabs — synthese vocale pour que le message de resultat du Sas
+    de Securite soit lu a voix haute (accessibilite + impact le matin).
+84. Cohere Classify API — alternative legere a OpenAI pour classer vite
+    les notes de trade par emotion dominante.
+
+================================================================
+K. INFRA, STOCKAGE & EXPORT
+================================================================
+85. AWS S3 / Cloudflare R2 — stockage des exports PDF, sauvegardes DB,
+    pieces jointes futures (captures d'ecran de trade).
+86. PDFMonkey / DocRaptor — generation de rapports PDF mensuels de
+    performance a partir des donnees Tracking.
+87. Google Drive API — export automatique du journal de trading vers le
+    Drive personnel de l'utilisateur.
+88. Dropbox API — alternative d'export pour les utilisateurs Dropbox.
+89. Zapier / Make (webhooks) — connecte Kriyo au stack personnel de
+    l'utilisateur (Notion, Google Sheets) sans developpement custom.
+90. rclone + Backblaze B2 — sauvegardes automatiques chiffrees hors-site
+    du Postgres, au-dela du script de backup manuel actuel.
+91. Healthchecks.io — surveille que les taches planifiees (reset des
+    gates a minuit, nettoyage des locks) tournent bien.
+92. Cloudflare Tunnel / ngrok — teste en dev les webhooks entrants
+    (brokers, Stripe) sans exposer le VPS.
+
+================================================================
+L. SOCIAL, COMMUNAUTE & ENGAGEMENT
+================================================================
+93. Discord API — bot communautaire pour les utilisateurs Kriyo (partage
+    de streaks, classement).
+94. Slack API — notifications internes a l'equipe (nouvel utilisateur,
+    trade qui declenche un max DD), en complement du dashboard admin.
+95. Google Calendar API — prise de rendez-vous coaching 1:1 pour les
+    utilisateurs premium.
+96. Unsplash API — enrichit visuellement les messages de resultat du Sas
+    de Securite, aujourd'hui tres textuels.
+97. Apple Sign-In / Google Sign-In — reduit la friction a l'inscription
+    (actuellement email/mot de passe seul).
+98. Open Graph / ShareThis — partage social du streak ("30 jours de
+    discipline sur Kriyo") pour l'acquisition virale.
+99. Crisp / Intercom — chat support en direct pour les questions sur le
+    scoring ou un trade bloque a tort.
+100. Tally / Typeform API — collecte de feedback produit structure sans
+     developper un formulaire custom.

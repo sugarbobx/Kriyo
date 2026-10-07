@@ -30,7 +30,7 @@ class TradeSerializer(serializers.ModelSerializer):
         model = Trade
         fields = [
             'id', 'account', 'score_vr', 'score_ep', 'score_vp', 'score_total',
-            'risk_reward', 'pnl', 'status', 'opened_at', 'closed_at',
+            'risk_reward', 'pnl', 'status', 'close_reason', 'opened_at', 'closed_at',
         ]
         read_only_fields = fields
 
