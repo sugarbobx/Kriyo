@@ -275,7 +275,67 @@ a {
   border-color: rgba(229, 72, 77, 0.35);
 }
 
+.kriyo-icon-chip {
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--kriyo-surface);
+  color: var(--kriyo-faint);
+}
+
+.kriyo-criterion-row[data-state='validated'] .kriyo-icon-chip {
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--kriyo-success);
+}
+
+.kriyo-criterion-row[data-state='invalidated'] .kriyo-icon-chip {
+  background: rgba(229, 72, 77, 0.12);
+  color: var(--kriyo-danger);
+}
+
+.kriyo-overall {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.kriyo-overall-count {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--kriyo-text);
+  white-space: nowrap;
+}
+
+.kriyo-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0 0.55rem;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kriyo-cyan);
+}
+
+.kriyo-section-head::before {
+  content: '';
+  width: 10px;
+  height: 1px;
+  background: var(--kriyo-cyan);
+  opacity: 0.6;
+}
+
+.kriyo-section-head:first-of-type {
+  margin-top: 0;
+}
+
 .kriyo-progress-track {
+  flex: 1;
   height: 6px;
   border-radius: 999px;
   background: var(--kriyo-border-soft);

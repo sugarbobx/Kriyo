@@ -8,6 +8,57 @@ import { interpolate } from './i18n/translations';
 type Screen = 'loading' | 'locked' | 'list' | 'quiz' | 'result' | 'review';
 type CriterionKey = 'tension' | 'screen_time' | 'phone' | 'macro' | 'alignment';
 
+const ICON_PROPS = {
+  width: 16,
+  height: 16,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.7,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const
+};
+
+function CriterionIcon({ criterionKey }: { criterionKey: CriterionKey }) {
+  switch (criterionKey) {
+    case 'tension':
+      return (
+        <svg {...ICON_PROPS}>
+          <path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z" />
+        </svg>
+      );
+    case 'screen_time':
+      return (
+        <svg {...ICON_PROPS}>
+          <rect x="3" y="4" width="18" height="12" rx="2" />
+          <path d="M8 20h8M12 16v4" />
+        </svg>
+      );
+    case 'phone':
+      return (
+        <svg {...ICON_PROPS}>
+          <rect x="7" y="2" width="10" height="20" rx="2" />
+          <path d="M11 18h2" />
+        </svg>
+      );
+    case 'macro':
+      return (
+        <svg {...ICON_PROPS}>
+          <rect x="3" y="4" width="18" height="17" rx="2" />
+          <path d="M3 9h18M8 2v4M16 2v4" />
+        </svg>
+      );
+    case 'alignment':
+      return (
+        <svg {...ICON_PROPS}>
+          <circle cx="12" cy="12" r="8" />
+          <circle cx="12" cy="12" r="4" />
+          <circle cx="12" cy="12" r="0.6" fill="currentColor" stroke="none" />
+        </svg>
+      );
+  }
+}
+
 interface ResultData {
   tier: MessageTier;
   overallScore: number;
@@ -223,38 +274,52 @@ export default function SecurityGate({ onDone }: { onDone: () => void }) {
     );
   }
 
+  const validatedCount = criteria.filter((c) => c.validated).length;
+  const psychCriteria = criteria.filter((c) => c.category === 'psych');
+  const techCriteria = criteria.filter((c) => c.category === 'tech');
+
+  function renderCriterionRow(criterion: CriterionState) {
+    const key = criterion.key as CriterionKey;
+    const state = !criterion.attempted ? 'pending' : criterion.validated ? 'validated' : 'invalidated';
+    return (
+      <button
+        key={criterion.key}
+        type="button"
+        className="kriyo-criterion-row"
+        data-state={state}
+        onClick={() => (criterion.attempted ? openReview(key) : openCriterion(key))}
+      >
+        <span className="kriyo-icon-chip">
+          <CriterionIcon criterionKey={key} />
+        </span>
+        <p className="kriyo-palier-title" style={{ margin: 0, flex: 1 }}>
+          {dict.gate.categories[key]}
+        </p>
+        <span
+          className={`kriyo-badge ${state === 'validated' ? 'kriyo-badge--success' : ''}`}
+          style={state === 'invalidated' ? { borderColor: 'rgba(229,72,77,0.3)', background: 'rgba(229,72,77,0.1)', color: 'var(--kriyo-danger)' } : undefined}
+        >
+          {state === 'pending' ? dict.gate.todo : `${Math.round((criterion.score ?? 0) * 100)}%`}
+        </span>
+      </button>
+    );
+  }
+
   return (
     <AppShell title={dict.gate.title} subtitle={dict.gate.listSubtitle}>
-      <div className="kriyo-stack">
-        {criteria.map((criterion) => {
-          const key = criterion.key as CriterionKey;
-          const state = !criterion.attempted ? 'pending' : criterion.validated ? 'validated' : 'invalidated';
-          return (
-            <button
-              key={criterion.key}
-              type="button"
-              className="kriyo-criterion-row"
-              data-state={state}
-              onClick={() => (criterion.attempted ? openReview(key) : openCriterion(key))}
-            >
-              <div>
-                <p className="kriyo-palier-title" style={{ margin: 0 }}>
-                  {dict.gate.categories[key]}
-                </p>
-                <p className="kriyo-dim" style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', textTransform: 'uppercase' }}>
-                  {criterion.category === 'psych' ? dict.gate.psych : dict.gate.tech}
-                </p>
-              </div>
-              <span
-                className={`kriyo-badge ${state === 'validated' ? 'kriyo-badge--success' : ''}`}
-                style={state === 'invalidated' ? { borderColor: 'rgba(229,72,77,0.3)', background: 'rgba(229,72,77,0.1)', color: 'var(--kriyo-danger)' } : undefined}
-              >
-                {state === 'pending' ? dict.gate.todo : `${Math.round((criterion.score ?? 0) * 100)}%`}
-              </span>
-            </button>
-          );
-        })}
+      <div className="kriyo-overall">
+        <span className="kriyo-overall-count">{interpolate(dict.gate.progressLabel, { count: String(validatedCount) })}</span>
+        <div className="kriyo-progress-track">
+          <div className="kriyo-progress-fill" style={{ width: `${(validatedCount / 5) * 100}%` }} />
+        </div>
       </div>
+
+      <p className="kriyo-section-head">{dict.gate.psych}</p>
+      <div className="kriyo-stack">{psychCriteria.map(renderCriterionRow)}</div>
+
+      <p className="kriyo-section-head">{dict.gate.tech}</p>
+      <div className="kriyo-stack">{techCriteria.map(renderCriterionRow)}</div>
+
       {error ? <p className="kriyo-error">{error}</p> : null}
     </AppShell>
   );

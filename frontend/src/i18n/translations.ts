@@ -71,12 +71,13 @@ const fr = dict({
     reviewSubtitle: 'Questions et réponses déjà enregistrées pour ce critère.',
     weakestCriterionLabel: 'Point le plus faible (7 derniers jours)',
     streakResultLabel: 'Série',
+    progressLabel: '{count} / 5 critères validés',
     categories: {
-      tension: 'Tension',
-      screen_time: 'Screen time',
-      phone: 'Phone',
-      macro: 'Macro',
-      alignment: 'Alignment'
+      tension: 'Forme & calme',
+      screen_time: "Discipline d'écran",
+      phone: 'Zéro distraction',
+      macro: 'Contexte macro',
+      alignment: 'Alignement du setup'
     },
     questions: {
       tension: [
@@ -346,12 +347,13 @@ const en = dict({
     reviewSubtitle: 'Questions and answers already recorded for this criterion.',
     weakestCriterionLabel: 'Weakest area (last 7 days)',
     streakResultLabel: 'Streak',
+    progressLabel: '{count} / 5 criteria passed',
     categories: {
-      tension: 'Tension',
-      screen_time: 'Screen time',
-      phone: 'Phone',
-      macro: 'Macro',
-      alignment: 'Alignment'
+      tension: 'Rest & calm',
+      screen_time: 'Screen discipline',
+      phone: 'Zero distraction',
+      macro: 'Macro context',
+      alignment: 'Setup alignment'
     },
     questions: {
       tension: [
